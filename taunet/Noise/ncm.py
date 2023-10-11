@@ -48,8 +48,6 @@ class NoiseModel:
             #dat=np.fromfile(fname,dtype=np.float32, sep='')
             dat=np.fromfile(fname,dtype=self.dtype).astype(self.dtype)
         n=int(np.sqrt(dat.shape))
-        print(n)
-        print(dat.shape)
         return np.reshape(dat,(n,n)).copy()
     
     @staticmethod
