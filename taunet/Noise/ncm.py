@@ -18,6 +18,8 @@ class NoiseModel:
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
+        self.polmask = self.inpvec(self.__qumask__, double_prec=False)
+
 
         #NCM
         self.ncms = {
@@ -110,4 +112,8 @@ class NoiseModel:
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
         return self.unmask(noisemap[:pl],polmask)
+    
+    def Emode(self,freq):
+        noisemap = self.noisemap(freq)
+        return hp.map2alm_spin([noisemap,noisemap],2,lmax=3*self.nside-1)[0]
         
