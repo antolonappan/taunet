@@ -14,16 +14,21 @@ class CMBspectra:
 
     def __init__(self,H0=67.32,ombh2=0.02237,omch2=0.1201,ns=0.9651,mnu=0.06,tau=0.06) -> None:
         pars = camb.CAMBparams()
+        self.tau = tau
         pars.set_cosmology(H0=H0, ombh2=ombh2, omch2=omch2, mnu=mnu,tau=tau)
         pars.InitPower.set_params(ns=ns,r=0)
         pars.set_for_lmax(100, lens_potential_accuracy=0)
         results = camb.get_results(pars)
-        powers = results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=True)
-        self.EE = powers[:,1]
+        self.powers = results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=True)
+        self.EE = self.powers[:,1]
     
     def plot(self):
         plt.loglog(self.EE)
         plt.show()
+    
+    def save_power(self,libdir):
+        fname = os.path.join(libdir,f"lensed_scalar_cls_{str(self.tau).replace('.','p')}.dat")
+        np.savetxt(fname,self.powers)
 
 
 class CMBmap:
