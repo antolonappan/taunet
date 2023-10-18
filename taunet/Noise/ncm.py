@@ -102,6 +102,21 @@ class NoiseModel:
         ncm_dir = self.ncms[freq]
         return np.float64(self.inpcovmat(ncm_dir,double_prec=False))
     
+    def get_full_ncm(self,freq,pad_temp=False,reshape=False,save=None):
+        ncm = self.get_ncm(freq)
+        ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask,self.polmask]))
+        del ncm
+        if pad_temp:
+            NCM = np.zeros((3*self.npix,3*self.npix))
+            NCM[self.npix:,self.npix:] = ncm_pol
+        else:
+            NCM = ncm_pol
+        
+        if reshape:
+            return NCM.reshape(-1)
+        else:
+            return NCM
+
     def noisemap(self,freq):
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
@@ -111,7 +126,7 @@ class NoiseModel:
         pix = ncm.shape[0]
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
-        return self.unmask(noisemap[:pl],polmask)
+        return self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)
     
     def Emode(self,freq):
         noisemap = self.noisemap(freq)

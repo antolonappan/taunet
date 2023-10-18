@@ -17,10 +17,21 @@ class CMBspectra:
         self.tau = tau
         pars.set_cosmology(H0=H0, ombh2=ombh2, omch2=omch2, mnu=mnu,tau=tau)
         pars.InitPower.set_params(ns=ns,r=0)
-        pars.set_for_lmax(100, lens_potential_accuracy=0)
-        results = camb.get_results(pars)
-        self.powers = results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=True)
+        pars.set_for_lmax(284, lens_potential_accuracy=0)
+        self.results = camb.get_results(pars)
+        self.powers = self.results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=True)
         self.EE = self.powers[:,1]
+    
+    def tofile(self,libdir):
+        fname = os.path.join(libdir,f"lensed_scalar_cls_{str(self.tau).replace('.','p')}.dat")
+        powers = self.results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=False)
+        powers = powers[2:,:]
+        lmax = len(powers)
+        l = np.arange(2,lmax+2)
+        powers = np.column_stack((l.reshape(-1),powers))
+        np.savetxt(fname,powers)
+        
+
     
     def plot(self):
         plt.loglog(self.EE)
