@@ -52,12 +52,6 @@ class CMBmap:
         self.EE = CMBspectra(tau=tau).EE
         self.NSIDE = 16
         self.lmax = 3*self.NSIDE-1
-
-    def synthetic_beam(self,lmax=60):
-        bl = np.zeros(lmax + 1)
-        bl[:41] = 1.0
-        bl[41:49] = (1 + np.cos(np.arange(41, 49) - 40) * (np.pi / 8)) / 2.0
-        return bl
     
     def alm(self,idx=None):
         if idx is None:
@@ -133,8 +127,19 @@ class SkySimulation:
         self.cmb_const = cmb_const
         self.fg_const = fg_const
 
+    def get_beam(self):
+        return hp.read_cl('/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits')[0]
+
     
-    def QU(self,band,idx=None):
+    def apply_beam(self,QU):
+        beam = self.get_beam()
+        TQU = [np.zeros_like(QU[0]),QU[0],QU[1]] 
+        alms = hp.map2alm(TQU, lmax=self.CMB.lmax)
+        hp.almxfl(alms[1], beam, inplace=True)
+        hp.almxfl(alms[2], beam, inplace=True)
+        return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
+
+    def QU(self,band,idx=None,order='ring'):
         if self.cmb_const:
             cmb = self.qu_cmb
         else:
@@ -149,9 +154,17 @@ class SkySimulation:
         else:
             fg = self.FG.QU(band)
         
-        noise = self.noise.noisemap(band)
+        noise = self.noise.noisemap(band,'ring')
         QU = cmb + fg + noise
-        return QU*self.noise.polmask
+        QU = self.apply_beam(QU)*self.noise.polmask('ring')
+        if order=='ring':
+            pass
+        elif order=='nested':
+            QU = hp.reorder(QU,r2n=True)
+        else:
+            raise ValueError('order must be ring or nested')
+        return QU
+
     
     def Emode(self,band,idx=None):
         QU = self.QU(band,idx=idx)

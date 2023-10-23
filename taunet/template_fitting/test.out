@@ -1,0 +1,79 @@
+Reading run parameters from param.ini
+ parameters not defined in that file will be set to their default value
+ Parser: feedback =            1  <default>
+ Parser: maskfile = /marconi/home/userexternal/aidicher/storage/taunet/mask.fits
+ Parser: ncvmfilesync = /marconi_work/INF23_litebird/lpagano0/4anto/wmap/wmap_K_coswin_ns16_9yr_v5_covmat.bin
+ Parser: ncvmfiledust = /marconi/home/userexternal/aidicher/storage/taunet/ncm_TQU_353.bin
+ Parser: ncvmfile = /marconi/home/userexternal/aidicher/storage/taunet/ncm_TQU_100.bin
+ Parser: root_datasync = /marconi_work/INF23_litebird/lpagano0/4anto/wmap/wmap_K_coswin_ns16_9yr_v5.fits
+ Parser: root_datadust = /marconi_work/INF23_litebird/lpagano0/4anto/sroll2/map_sroll2_353psb_coswin_ns16_full.fits
+ Parser: root_data = /marconi/home/userexternal/aidicher/storage/taunet/cmb_100.fits
+ Parser: ordering =            1 
+ Parser: calibration =    1000000.00000000      
+ Parser: nside =           16 
+ Parser: do_signal_covmat =  T 
+ Parser: fiducialfile = /marconi/home/userexternal/aidicher/storage/taunet/lensed_scalar_cls_0p06.dat
+ Parser: use_beam_file =  T 
+ Parser: lmax =           64 
+ Parser: beam_file = /marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits
+ Parser: regularization_noise_S_covmat =   2.000000000000000E-002 
+ Parser: do_likelihood_marginalization =  F 
+ Parser: na =          320 
+ Parser: nb =          320 
+ Parser: bega =   0.290000000000000      
+ Parser: enda =   0.360000000000000      
+ Parser: begb =   0.000000000000000E+000 
+ Parser: endb =   7.000000000000000E-003 
+ Parser: ssim =            1 
+ Parser: nsim =            1 
+ Parser: zerofill =            4  <default>
+ Parser: suffix_map = .fits <default>
+ Parser: write_results_scalings =  F 
+ Parser: file_scalings = /marconi/home/userexternal/aidicher/storage/taunet/scalings.txt
+ Parser: use_complete_covmat =  T 
+ Parser: minimize_chi2 =  T 
+ Parser: output_clean_dataset =  T 
+ Parser: root_out_cleaned_map = /marconi/home/userexternal/aidicher/storage/taunet/cleaned.fits
+ Parser: add_polarization_white_noise =  F 
+ Parser: output_covariance =  F 
+ Parser: use_external_temperature_map =  F 
+ Parser: add_temperature_white_noise =  F 
+ Parser: seed1 =    696877673  <default>
+ Parser: seed2 =        10000  <default>
+ Using:           96  processors
+ Using:         1067 models per processor
+ Reading Mask
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/taunet/mask.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Channel - Pol:         1659 Tot:         3318
+ Reading            1  maps
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/taunet/cmb_100.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi_work/INF23_litebird/lpagano0/4anto/wmap/wmap_K_coswin_ns16_9yr_v5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi_work/INF23_litebird/lpagano0/4anto/sroll2/map_sroll2_353psb_coswin_ns16_full.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Reading covmat channel
+ Reading covmat sync
+ Reading covmat dust
+ Adding regularization noise
+ Initialization done
+ starting loop over parameters
+ Computing scalings
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/taunet/cmb_100.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi_work/INF23_litebird/lpagano0/4anto/wmap/wmap_K_coswin_ns16_9yr_v5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi_work/INF23_litebird/lpagano0/4anto/sroll2/map_sroll2_353psb_coswin_ns16_full.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ --------------------------------
+ -------Computation ended--------
+ --------------------------------

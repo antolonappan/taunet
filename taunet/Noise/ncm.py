@@ -18,7 +18,6 @@ class NoiseModel:
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
-        self.polmask = self.inpvec(self.__qumask__, double_prec=False)
 
 
         #NCM
@@ -40,6 +39,16 @@ class NoiseModel:
         else:
             dat = np.fromfile(fname,dtype=self.dtype).astype(self.dtype)
         return dat
+    
+    def polmask(self,order='ring'):
+        mask = self.inpvec(self.__qumask__, double_prec=False)
+        if order=='ring':
+            pass
+        elif order=='nested':
+            mask = hp.reorder(mask,r2n=True)
+        else:
+            raise ValueError('order must be ring or nested')
+        return mask
     
    
     def inpcovmat(self,fname, double_prec=True):
@@ -102,9 +111,19 @@ class NoiseModel:
         ncm_dir = self.ncms[freq]
         return np.float64(self.inpcovmat(ncm_dir,double_prec=False))
     
-    def get_full_ncm(self,freq,pad_temp=False,reshape=False,save=None):
+    def get_full_ncm(self,freq,pad_temp=False,reshape=False,save=None,order='ring'):
         ncm = self.get_ncm(freq)
-        ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask,self.polmask]))
+        
+        ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask('ring'),self.polmask('ring')]))
+        if order=='ring':
+            pass
+        elif order=='nested':
+            re_idx = hp.nest2ring(self.nside,np.arange(hp.nside2npix(self.nside)))
+            re_idx_full = np.concatenate([re_idx,re_idx+hp.nside2npix(self.nside)])
+            ncm_pol = ncm_pol[:,re_idx_full][re_idx_full,:]
+        else:
+            raise ValueError('order must be ring or nested')
+            
         del ncm
         if pad_temp:
             NCM = np.zeros((3*self.npix,3*self.npix))
@@ -117,7 +136,7 @@ class NoiseModel:
         else:
             return NCM
 
-    def noisemap(self,freq):
+    def noisemap(self,freq,order='ring'):
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
@@ -126,9 +145,16 @@ class NoiseModel:
         pix = ncm.shape[0]
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
-        return self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)
+        QU =  self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)
+        if order=='ring':
+            pass
+        elif order=='nested':
+            QU = hp.reorder(QU,r2n=True)
+        else:
+            raise ValueError('order must be ring or nested')
+        return QU
     
     def Emode(self,freq):
-        noisemap = self.noisemap(freq)
-        return hp.map2alm_spin([noisemap,noisemap],2,lmax=3*self.nside-1)[0]
+        Q,U = self.noisemap(freq,'ring')
+        return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
