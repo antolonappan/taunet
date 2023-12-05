@@ -3,7 +3,12 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import os
 
+cosbeam = hp.read_cl('/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits')[0]
 
+def cli(cl):
+    ret = np.zeros_like(cl)
+    ret[np.where(cl > 0)] = 1. / cl[np.where(cl > 0)]
+    return ret
 
 class NoiseModel:
     #Roger et.al
@@ -18,6 +23,7 @@ class NoiseModel:
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
+        self.fsky = np.average(self.polmask('ring'))
 
 
         #NCM
@@ -105,14 +111,21 @@ class NoiseModel:
         elif which == 'LFI':
             return fac_degrade_LFI*fac_ncm_LFI
     
-    def get_ncm(self,freq):
+    def get_ncm(self,freq,unit='uK'):
         if freq not in self.ncms.keys():
             raise ValueError('Freq must be one of {}'.format(self.ncms.keys()))
         ncm_dir = self.ncms[freq]
-        return np.float64(self.inpcovmat(ncm_dir,double_prec=False))
+        fac = 1
+        if unit=='uK':
+            pass
+        elif unit=='K':
+            fac = 1e-12
+        else:
+            raise ValueError('unit must be uK or K')
+        return np.float64(self.inpcovmat(ncm_dir,double_prec=False)) *fac
     
-    def get_full_ncm(self,freq,pad_temp=False,reshape=False,save=None,order='ring'):
-        ncm = self.get_ncm(freq)
+    def get_full_ncm(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
+        ncm = self.get_ncm(freq,unit=unit)
         
         ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask('ring'),self.polmask('ring')]))
         if order=='ring':
@@ -136,25 +149,37 @@ class NoiseModel:
         else:
             return NCM
 
-    def noisemap(self,freq,order='ring'):
+    def noisemap(self,freq,order='ring',unit='uK',deconvolve=False):
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
-        ncm = self.get_ncm(freq)
+        ncm = self.get_ncm(freq,unit=unit)
         ncm_cho = np.linalg.cholesky(ncm)
         pix = ncm.shape[0]
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
-        QU =  self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)
+        QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
+
+        
+        if deconvolve:
+            alm = hp.map2alm([QU[0]*0,QU[0],QU[1]],lmax=3*self.nside-1)
+            hp.almxfl(alm[1],cli(cosbeam),inplace=True)
+            hp.almxfl(alm[2],cli(cosbeam),inplace=True)
+            QU = hp.alm2map(alm,self.nside,verbose=False)[1:]
+        
+        QU = QU * self.polmask('ring')
+
         if order=='ring':
             pass
         elif order=='nested':
             QU = hp.reorder(QU,r2n=True)
         else:
             raise ValueError('order must be ring or nested')
+
+        
         return QU
     
-    def Emode(self,freq):
-        Q,U = self.noisemap(freq,'ring')
+    def Emode(self,freq,deconvolve=False):
+        Q,U = self.noisemap(freq,'ring',deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
