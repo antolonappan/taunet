@@ -132,7 +132,7 @@ class SkySimulation:
         if cmb_const:
             self.qu_cmb = CMBmap(libdir,nsim,tau).QU()
         if fg_const:
-            self.qu_fg_23 = FGMap(libdir,fg).QU(23)
+            self.qu_fg_30 = FGMap(libdir,fg).QU(30)
             self.qu_fg_100 = FGMap(libdir,fg).QU(100)
             self.qu_fg_143 = FGMap(libdir,fg).QU(143)
             self.qu_fg_353 = FGMap(libdir,fg).QU(353)
@@ -161,8 +161,8 @@ class SkySimulation:
         else:
             cmb = self.CMB.QU(idx=idx,beam=True)
         if self.fg_const:
-            if band == 23:
-                fg = self.qu_fg_23
+            if band == 30:
+                fg = self.qu_fg_30
             elif band == 100:
                 fg = self.qu_fg_100
             elif band == 143:
