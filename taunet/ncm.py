@@ -2,8 +2,9 @@ import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import os
+from taunet import DATADIR
 
-cosbeam = hp.read_cl('/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits')[0]
+cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
 def cli(cl):
     ret = np.zeros_like(cl)
@@ -19,7 +20,7 @@ class NoiseModel:
         self.dtype = np.float32
 
         # directory
-        self.__cfd__ = os.path.dirname(os.path.realpath(__file__))
+        self.__cfd__ = DATADIR
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
