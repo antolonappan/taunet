@@ -1,3 +1,6 @@
+Data
 __pycache__/
 .cache/
 .ipynb_checkpoints
+.err
+.out
