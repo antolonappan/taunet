@@ -1,0 +1,250 @@
+Reading run parameters from param.ini
+ parameters not defined in that file will be set to their default value
+ Parser: feedback =            1  <default>
+ Parser: maskfile = /marconi/home/userexternal/aidicher/storage/TAUNET/mask.fits
+ Parser: ncvmfilesync = /marconi/home/userexternal/aidicher/storage/TAUNET/NCM/ncm_30.bin
+ Parser: ncvmfiledust = /marconi/home/userexternal/aidicher/storage/TAUNET/NCM/ncm_353.bin
+ Parser: ncvmfile = /marconi/home/userexternal/aidicher/storage/TAUNET/NCM/ncm_100.bin
+ Parser: root_datasync = /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_
+ Parser: root_datadust = /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_
+ Parser: root_data = /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_
+ Parser: ordering =            1 
+ Parser: calibration =    1000000.00000000      
+ Parser: nside =           16 
+ Parser: do_signal_covmat =  T 
+ Parser: fiducialfile = /marconi/home/userexternal/aidicher/storage/TAUNET/SPECTRA/lensed_scalar_cls_0p06.dat
+ Parser: use_beam_file =  T 
+ Parser: lmax =           64 
+ Parser: beam_file = /marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits
+ Parser: regularization_noise_S_covmat =   2.000000000000000E-002 
+ Parser: do_likelihood_marginalization =  F 
+ Parser: na =          320 
+ Parser: nb =          320 
+ Parser: bega =   5.000000000000000E-003 
+ Parser: enda =   1.500000000000000E-002 
+ Parser: begb =   1.500000000000000E-002 
+ Parser: endb =   2.200000000000000E-002 
+ Parser: ssim =            0 
+ Parser: nsim =           10 
+ Parser: zerofill =            1 
+ Parser: suffix_map = .fits
+ Parser: write_results_scalings =  F 
+ Parser: file_scalings = /marconi/home/userexternal/aidicher/storage/TAUNET/CLEAN/scalings.txt
+ Parser: use_complete_covmat =  T 
+ Parser: minimize_chi2 =  T 
+ Parser: output_clean_dataset =  T 
+ Parser: root_out_cleaned_map = /marconi/home/userexternal/aidicher/storage/TAUNET/CLEAN/cleaned_100_
+ Parser: add_polarization_white_noise =  F 
+ Parser: output_covariance =  F 
+ Parser: use_external_temperature_map =  F 
+ Parser: add_temperature_white_noise =  F 
+ Parser: seed1 =   1383719621  <default>
+ Parser: seed2 =        10000  <default>
+ Using:           96  processors
+ Using:         1067 models per processor
+ Reading Mask
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/mask.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Channel - Pol:         1659 Tot:         3318
+ Reading           10  maps
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Reading covmat channel
+ Reading covmat sync
+ Reading covmat dust
+ Adding regularization noise
+ Initialization done
+ starting loop over parameters
+ Computing scalings
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_0.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_1.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_2.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_3.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_4.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_5.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_6.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_7.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_8.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_100_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_30_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ The POLCCONV keyword was not found in /marconi/home/userexternal/aidicher/storage/TAUNET/SIMULATIONS_s0d0/sky_353_9.fits
+ COSMO (HEALPix default) will be assumed, and map is unchanged.
+ See HEALPix primer (http://healpix.sf.net/pdf/intro.pdf) for details.
+ Write dataset
+ --------------------------------
+ -------Computation ended--------
+ --------------------------------
