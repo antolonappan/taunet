@@ -3,6 +3,7 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import os
 from taunet import DATADIR
+import pickle as pkl
 
 cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
@@ -21,6 +22,8 @@ class NoiseModel:
 
         # directory
         self.__cfd__ = DATADIR
+        self.__cholesky__ = os.path.join(self.__cfd__,'cholesky')
+        os.makedirs(self.__cholesky__,exist_ok=True)
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
@@ -29,6 +32,7 @@ class NoiseModel:
 
         #NCM
         self.ncms = {
+            23 : os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin'),
             30 : os.path.join(self.__cfd__,'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
             40 : os.path.join(self.__cfd__,'noise_FFP10_44full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
             70 : os.path.join(self.__cfd__,'noise_FFP10_70full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
@@ -112,9 +116,24 @@ class NoiseModel:
         elif which == 'LFI':
             return fac_degrade_LFI*fac_ncm_LFI
     
+    def __get_ncm23__(self,unit='K'):
+        if unit!='K':
+            raise ValueError('unit must be K')
+        ncm = np.fromfile(self.ncms[23])
+        ncm = ncm.reshape(3*self.npix,3*self.npix)
+        ncmqu = ncm[self.npix:,self.npix:]
+        lambdaI = np.eye(2*self.npix) * 4e-16
+        ncmqu = ncmqu + lambdaI
+        del (ncm,lambdaI)
+        return ncmqu
+    
     def get_ncm(self,freq,unit='uK'):
         if freq not in self.ncms.keys():
             raise ValueError('Freq must be one of {}'.format(self.ncms.keys()))
+        
+        if freq==23:
+            return self.__get_ncm23__(unit=unit)
+        
         ncm_dir = self.ncms[freq]
         fac = 1
         if unit=='uK':
@@ -149,14 +168,44 @@ class NoiseModel:
             return NCM.reshape(-1)
         else:
             return NCM
-
+    
+    def __noisemap23__(self,order='nested',unit='K'):
+        if unit != 'K':
+            raise ValueError('unit must be K')
+        fname = os.path.join(self.__cholesky__,'cholesky_23_nested.pkl')
+        if os.path.exists(fname):
+            ncm_cho = pkl.load(open(fname,'rb'))
+        else:
+            ncm = self.get_ncm23(unit=unit)
+            ncm_cho = np.linalg.cholesky(ncm)
+            pkl.dump(ncm_cho,open(fname,'wb'))
+        pix = ncm_cho.shape[0]
+        noisem = np.random.normal(0,1,pix)
+        noisemap = np.dot(ncm_cho, noisem)
+        QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
+                        noisemap[pix//2:]*self.polmask('nested')])
+        if order=='ring':
+            QU[0] = hp.reorder(QU[0],n2r=True)
+            QU[1] = hp.reorder(QU[1],n2r=True)
+        return QU
+    
     def noisemap(self,freq,order='ring',unit='uK',deconvolve=False):
+        if freq == 23:
+            return self.__noisemap23__(order=order,unit=unit)
+        
+        fname = os.path.join(self.__cholesky__,'cholesky_{}_{}.pkl'.format(freq,order))
+        if os.path.exists(fname):
+            ncm_cho = pkl.load(open(fname,'rb'))
+        else:
+            ncm = self.get_ncm(freq,unit=unit)
+            ncm_cho = np.linalg.cholesky(ncm)
+            pkl.dump(ncm_cho,open(fname,'wb'))
+        
+
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
-        ncm = self.get_ncm(freq,unit=unit)
-        ncm_cho = np.linalg.cholesky(ncm)
-        pix = ncm.shape[0]
+        pix = ncm_cho.shape[0]
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
@@ -180,7 +229,19 @@ class NoiseModel:
         
         return QU
     
-    def Emode(self,freq,deconvolve=False):
-        Q,U = self.noisemap(freq,'ring',deconvolve=deconvolve)
+    def Emode(self,freq,unit='uK',deconvolve=False):
+        Q,U = self.noisemap(freq,'ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
+
+
+# def swap_diagonal(matrixa, new_order_indices):
+#     matrix = matrixa.copy()
+#     n = len(matrix)
+#     original_diagonal = np.diag(matrix)
+#     new_diagonal = original_diagonal[new_order_indices]
+#     np.fill_diagonal(matrix, new_diagonal)
+#     for i, new_index in enumerate(new_order_indices):
+#         if i != new_index:
+#             matrix[i, new_index], matrix[new_index, i] = matrix[new_index, new_index], matrix[new_index, i]
+#     return matrix

@@ -5,7 +5,7 @@ import camb
 import healpy as hp
 import pysm3
 import pysm3.units as u
-from taunet.Noise.ncm import NoiseModel
+from taunet.ncm import NoiseModel
 import os
 import pickle as pl
 
