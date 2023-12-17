@@ -6,10 +6,11 @@ import healpy as hp
 import pysm3
 import pysm3.units as u
 from taunet.ncm import NoiseModel,NoiseModelGaussian
+from taunet import DATADIR
 import os
 import pickle as pl
 
-cosbeam = hp.read_cl('/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits')[0]
+cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
 def cli(cl):
     ret = np.zeros_like(cl)
