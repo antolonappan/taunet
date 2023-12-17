@@ -5,7 +5,7 @@ import camb
 import healpy as hp
 import pysm3
 import pysm3.units as u
-from taunet.ncm import NoiseModel
+from taunet.ncm import NoiseModel,NoiseModelGaussian
 import os
 import pickle as pl
 
@@ -128,10 +128,11 @@ class FGMap:
 
 class SkySimulation:
 
-    def __init__(self,libdir,nsim,tau,fg,cmb_const=True,fg_const=True):
+    def __init__(self,libdir,nsim,tau,fg,cmb_const=True,fg_const=True,noise_g=False):
         if cmb_const:
             self.qu_cmb = CMBmap(libdir,nsim,tau).QU()
         if fg_const:
+            self.qu_fg_23 = FGMap(libdir,fg).QU(23)
             self.qu_fg_30 = FGMap(libdir,fg).QU(30)
             self.qu_fg_100 = FGMap(libdir,fg).QU(100)
             self.qu_fg_143 = FGMap(libdir,fg).QU(143)
@@ -141,10 +142,11 @@ class SkySimulation:
         self.FG = FGMap(libdir,fg)
         self.noise = NoiseModel()
         self.nsim = nsim
+        self.nside = self.CMB.NSIDE
         self.cmb_const = cmb_const
         self.fg_const = fg_const
 
-
+        self.noise_g = noise_g
 
     
     def apply_beam(self,QU):
@@ -155,13 +157,15 @@ class SkySimulation:
         hp.almxfl(alms[2], beam, inplace=True)
         return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
 
-    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,):
+    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,nlevp=None):
         if self.cmb_const:
             cmb = self.qu_cmb
         else:
             cmb = self.CMB.QU(idx=idx,beam=True)
         if self.fg_const:
-            if band == 30:
+            if band == 23:
+                fg = self.qu_fg_23
+            elif band == 30:
                 fg = self.qu_fg_30
             elif band == 100:
                 fg = self.qu_fg_100
@@ -174,7 +178,11 @@ class SkySimulation:
         else:
             fg = self.FG.QU(band,beam=True)
         
-        noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
+        if not self.noise_g:
+            noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
+        else:
+            assert nlevp is not None, "nlevp must be specified"
+            noise = NoiseModelGaussian(self.nside,nlevp).noisemaps('uK')[1:]
         QU = cmb + fg + noise
         #QU = self.apply_beam(QU)*self.noise.polmask('ring')
         if unit=='uK':

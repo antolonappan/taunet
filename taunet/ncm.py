@@ -170,13 +170,11 @@ class NoiseModel:
             return NCM
     
     def __noisemap23__(self,order='nested',unit='K'):
-        if unit != 'K':
-            raise ValueError('unit must be K')
         fname = os.path.join(self.__cholesky__,'cholesky_23_nested.pkl')
         if os.path.exists(fname):
             ncm_cho = pkl.load(open(fname,'rb'))
         else:
-            ncm = self.get_ncm23(unit=unit)
+            ncm = self.__get_ncm23__(unit=unit)
             ncm_cho = np.linalg.cholesky(ncm)
             pkl.dump(ncm_cho,open(fname,'wb'))
         pix = ncm_cho.shape[0]
@@ -187,6 +185,9 @@ class NoiseModel:
         if order=='ring':
             QU[0] = hp.reorder(QU[0],n2r=True)
             QU[1] = hp.reorder(QU[1],n2r=True)
+        
+        if unit=='uK':
+            QU *=1e6
         return QU
     
     def noisemap(self,freq,order='ring',unit='uK',deconvolve=False):
@@ -225,15 +226,52 @@ class NoiseModel:
             QU = hp.reorder(QU,r2n=True)
         else:
             raise ValueError('order must be ring or nested')
-
-        
         return QU
     
     def Emode(self,freq,unit='uK',deconvolve=False):
         Q,U = self.noisemap(freq,'ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
+class NoiseModelGaussian:
 
+    def __init__(self,nside,nlevp):
+        self.libdir = os.path.join(DATADIR,'choleskyGaussian')
+        os.makedirs(self.libdir,exist_ok=True)
+        self.nside = nside
+        self.nlevp = nlevp
+        self.nlevt = nlevp * np.sqrt(2.)
+        self.npix = hp.nside2npix(self.nside)
+    
+    def ncm(self,unit='uK'):
+        ncm = np.eye(3*self.npix)
+        if unit == 'uK':
+            fac = 1.
+        elif unit == 'K':
+            fac = 1e-12
+        else:
+            raise ValueError('unit not recognized')
+        
+        pix_amin2 = 4. * np.pi / float(hp.nside2npix(self.nside)) * (180. * 60. / np.pi) ** 2
+        sigma_t = np.sqrt(self.nlevt ** 2 / pix_amin2)
+        sigma_p = np.sqrt(self.nlevp ** 2 / pix_amin2)
+        ncm[:self.npix,:self.npix] *= (sigma_t** 2)
+        ncm[self.npix:,self.npix:] *= (sigma_p** 2)
+        return ncm * fac
+    
+    def noisemaps(self,unit='uK'):
+        fname = os.path.join(self.libdir,f"cholesky_{str(self.nlevt).replace('.','p')}_{str(self.nlevp).replace('.','p')}_{unit}.pkl")
+        if os.path.isfile(fname):
+            cho = pkl.load(open(fname,'rb'))
+        else:
+            ncm = self.ncm(unit)
+            cho = np.linalg.cholesky(ncm)
+            pkl.dump(cho,open(fname,'wb'))
+        noisemaps = np.dot(cho,np.random.normal(0.,1.,cho.shape[0]))
+        return noisemaps[:self.npix],noisemaps[self.npix:2*self.npix],noisemaps[2*self.npix:]
+    
+    def Emode(self,unit='uK'):
+        T,Q,U = self.noisemaps(unit)
+        return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
 
 # def swap_diagonal(matrixa, new_order_indices):
 #     matrix = matrixa.copy()
