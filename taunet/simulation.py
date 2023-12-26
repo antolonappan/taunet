@@ -29,7 +29,7 @@ class CMBspectra:
         self.EE = self.powers[:,1]
         self.ell = np.arange(len(self.EE))
     
-    def tofile(self,libdir):
+    def tofile(self,libdir,retfile=False):
         fname = os.path.join(libdir,f"lensed_scalar_cls_{str(self.tau).replace('.','p')}.dat")
         powers = self.results.get_lensed_scalar_cls(CMB_unit='muK', raw_cl=False)
         powers = powers[2:,:]
@@ -37,6 +37,8 @@ class CMBspectra:
         l = np.arange(2,lmax+2)
         powers = np.column_stack((l.reshape(-1),powers))
         np.savetxt(fname,powers)
+        if retfile:
+            return fname
         
 
     
@@ -44,9 +46,12 @@ class CMBspectra:
         plt.loglog(self.EE)
         plt.show()
     
-    def save_power(self,libdir):
+    def save_power(self,libdir,retfile=False):
         fname = os.path.join(libdir,f"lensed_scalar_cls_{str(self.tau).replace('.','p')}.dat")
-        np.savetxt(fname,self.powers)
+        if not os.path.isfile(fname):
+            np.savetxt(fname,self.powers)
+        if retfile:
+            return fname
 
 
 class CMBmap:
@@ -130,13 +135,13 @@ class SkySimulation:
 
     def __init__(self,libdir,nsim,tau,fg,cmb_const=True,fg_const=True,noise_g=False):
         if cmb_const:
-            self.qu_cmb = CMBmap(libdir,nsim,tau).QU()
+            self.qu_cmb = CMBmap(libdir,nsim,tau).QU(beam=True)
         if fg_const:
-            self.qu_fg_23 = FGMap(libdir,fg).QU(23)
-            self.qu_fg_30 = FGMap(libdir,fg).QU(30)
-            self.qu_fg_100 = FGMap(libdir,fg).QU(100)
-            self.qu_fg_143 = FGMap(libdir,fg).QU(143)
-            self.qu_fg_353 = FGMap(libdir,fg).QU(353)
+            self.qu_fg_23 = FGMap(libdir,fg).QU(23,beam=True)
+            self.qu_fg_30 = FGMap(libdir,fg).QU(30,beam=True)
+            self.qu_fg_100 = FGMap(libdir,fg).QU(100,beam=True)
+            self.qu_fg_143 = FGMap(libdir,fg).QU(143,beam=True)
+            self.qu_fg_353 = FGMap(libdir,fg).QU(353,beam=True)
         
         self.CMB = CMBmap(libdir,nsim,tau)
         self.FG = FGMap(libdir,fg)
@@ -204,3 +209,95 @@ class SkySimulation:
     def Emode(self,band,idx=None,beam=True,deconvolve=False):
         QU = self.QU(band,idx=idx,beam=beam,deconvolve=deconvolve)
         return hp.map2alm_spin(QU,2,lmax=self.CMB.lmax)[0]
+    
+
+class MakeSims:
+    def __init__(self,out_dir,fg=['s0','d0'],nside=16,noise_g=False,tau=0.06,nsim=100):
+        out_dir = out_dir
+        os.makedirs(out_dir,exist_ok=True)
+        simdir = os.path.join(out_dir,'SIMULATIONS_'+''.join(fg) + f'N_{int(noise_g)}')
+        os.makedirs(simdir,exist_ok=True)
+        spectra_dir = os.path.join(out_dir,'SPECTRA')
+        os.makedirs(spectra_dir,exist_ok=True)
+
+        self.simdir = simdir
+
+        spectra = CMBspectra(tau=tau)
+        spefname = spectra.save_power(spectra_dir,retfile=True)
+        print("Saved power spectra")
+
+        self.spectrafile = spefname
+
+        assert len(fg) == 2, "fg must be a list of length 2"
+        fg = fg
+
+        self.fg = fg
+
+        noise_g = noise_g
+
+        self.noise_g = noise_g
+
+        tau = tau
+        nsim = nsim
+
+        self.nsim  = nsim
+    
+        noise_levels = {'23': 61,
+                        '100': 55,
+                        '143': 54,
+                        '353': 60,}
+        
+        sky = SkySimulation(out_dir,nsim,tau,fg,cmb_const=False,noise_g=noise_g)
+
+        for f in [23,100,143,353]:
+            for i in tqdm(range(nsim),desc=f"Generating {f} GHz maps",unit='sim'):
+                fname = os.path.join(simdir,f'sky_{f}_{i:06d}.fits')
+                if not os.path.isfile(fname):
+                    Q, U = sky.QU(f,idx=i,unit='K',order='nested',nlevp=noise_levels[str(f)])
+                    hp.write_map(fname,[Q*0,Q,U],nest=True,dtype=np.float64)
+        
+        clean_dir = os.path.join(out_dir,'CLEAN_'+''.join(fg) + f'N_{int(noise_g)}')
+        os.makedirs(clean_dir,exist_ok=True)
+
+        self.clean_dir = clean_dir
+
+
+
+        if noise_g:
+            ncm_dir = os.path.join(out_dir,'NCMG')
+            self.ncm_dir = ncm_dir
+            os.makedirs(ncm_dir,exist_ok=True)
+            print("Generating noise covariance matrices: NoiseModelGaussian")
+            for f in [23,100,143,353]:
+                fname = os.path.join(ncm_dir,'ncm_{}.bin'.format(f))
+                if os.path.isfile(fname):
+                    continue 
+                ncm = NoiseModelGaussian(16,noise_levels[str(f)])
+                cov = ncm.ncm('K')
+                cov.tofile(fname)
+                print("Saved {}".format(fname))
+        else:
+            ncm_dir = os.path.join(out_dir,'NCM')
+            self.ncm_dir = ncm_dir
+            os.makedirs(ncm_dir,exist_ok=True)
+            print("Generating noise covariance matrices: NoiseModel")
+            ncm = NoiseModel()
+            for f in [100,143,353]:
+                fname = os.path.join(ncm_dir,'ncm_{}.bin'.format(f))
+                if os.path.isfile(fname):
+                    continue
+                cov = ncm.get_full_ncm(f,unit='K',pad_temp=True,reshape=True,order='ring')
+                cov.tofile(fname)
+                print("Saved {}".format(fname))
+        
+        fmask = os.path.join(out_dir,'mask.fits')
+        self.maskpath = fmask
+        if not os.path.isfile(fmask):
+            print("Generating mask")
+            ncm = NoiseModel()
+            mask = ncm.polmask('nested')
+            hp.write_map(fmask,[mask,mask,mask],nest=True)
+            print("Saved {}".format(fmask))
+
+
+        
