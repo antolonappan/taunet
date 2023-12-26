@@ -225,7 +225,7 @@ class SkySimulation:
     
 
 class MakeSims:
-    def __init__(self,out_dir,fg=['s0','d0'],nside=16,noise_g=False,tau=0.06,nsim=100):
+    def __init__(self,out_dir,fg=['s0','d0'],nside=16,noise_g=False,tau=0.06,nsim=100,ssim=0):
         out_dir = out_dir
         os.makedirs(out_dir,exist_ok=True)
         simdir = os.path.join(out_dir,'SIMULATIONS_'+''.join(fg) + f'N_{int(noise_g)}')
@@ -254,13 +254,17 @@ class MakeSims:
         nsim = nsim
 
         self.nsim  = nsim
+        self.ssim = ssim
     
         noise_levels = {'23': 61,
                         '100': 55,
                         '143': 54,
                         '353': 60,}
+        self.tau = tau
         
         sky = SkySimulation(out_dir,nsim,tau,fg,cmb_const=False,noise_g=noise_g)
+
+        self.sky = sky
 
         for f in [23,100,143,353]:
             for i in tqdm(range(nsim),desc=f"Generating {f} GHz maps",unit='sim'):
@@ -318,19 +322,18 @@ class MakeSims:
 
         fname = os.path.join(dire,f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini")
 
-        if not os.path.isfile(fname):
-            if band == 100:
-                bega=0.005
-                enda=0.015
-                begb=0.015
-                endb=0.022
-            elif band == 143:
-                bega=0.000
-                enda=0.015
-                begb=0.038
-                endb=0.041
+        if band == 100:
+            bega=0.005
+            enda=0.015
+            begb=0.015
+            endb=0.022
+        elif band == 143:
+            bega=0.000
+            enda=0.015
+            begb=0.038
+            endb=0.041
 
-            params = f"""maskfile={self.maskpath}
+        params = f"""maskfile={self.maskpath}
 ncvmfilesync=/marconi/home/userexternal/aidicher/luca/wmap/wmap_K_coswin_ns16_9yr_v5_covmat.bin
 ncvmfiledust={os.path.join(self.ncm_dir,'ncm_353.bin')}
 ncvmfile={os.path.join(self.ncm_dir,f'ncm_{band}.bin')}
@@ -340,7 +343,7 @@ root_datadust={os.path.join(self.simdir,'sky_353_')}
 root_data={os.path.join(self.simdir,f'sky_{band}_')}
 
 root_out_cleaned_map={os.path.join(self.clean_dir,f'cleaned_{band}_')}
-file_scalings={os.path.join(self.clean_dir,f'cleaned_{band}_')}
+file_scalings={os.path.join(self.clean_dir,'scalings.txt')}
 
 fiducialfile={self.spectrafile}
 
@@ -371,15 +374,15 @@ output_clean_dataset=T
 add_polarization_white_noise=F
 output_covariance=F
 template_marginalization=F
-ssim=0
+ssim={self.ssim}
 nsim={self.nsim}
 
 zerofill = 6
 suffix_map = .fits 
 """
-            f = open(fname, "wt")
-            f.write(params)
-            f.close()
+        f = open(fname, "wt")
+        f.write(params)
+        f.close()
         if ret:
             return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini"
     
@@ -420,6 +423,47 @@ srun grid_compsep_mpi.x {pname}
     def submit_job(self,band,dire='./'):
         fname = self.job_file(band,dire=dire,ret=True)
         os.system(f"sbatch {fname}")
+
+    
+    def anal_cleaned(self,nsim=20):
+        cmb = self.sky.CMB
+        Earr = []
+        for i in tqdm(range(nsim)):
+            CMB_QU = cmb.QU(idx=i,beam=True)
+            cmb_alm = hp.map2alm_spin(CMB_QU,spin=2)
+            ee = hp.alm2cl(cmb_alm[0])
+            Earr.append(ee)
+        Earr = np.array(Earr)
+        Emean = np.mean(Earr,axis=0)
+        Estd = np.std(Earr,axis=0)
+        cl = []
+        for i in tqdm(range(nsim)):
+            fname1 = os.path.join(self.clean_dir,f'cleaned_100_{i:06d}.fits')
+            fname2 = os.path.join(self.clean_dir,f'cleaned_143_{i:06d}.fits')
+            QU1 = hp.read_map(fname1,field=(1,2))
+            QU2 = hp.read_map(fname2,field=(1,2))
+            E1,_ = hp.map2alm_spin(QU1,spin=2)
+            E2,_ = hp.map2alm_spin(QU2,spin=2)
+            ee = hp.alm2cl(E1,E2)
+            cl.append(ee)
+        cl = np.array(cl)
+        clmean = np.mean(cl,axis=0)
+        clstd = np.std(cl,axis=0)
+        return Emean,Estd,clmean,clstd
+    
+    def plot_cleaned(self,nsim=20):
+        Emean,Estd,clmean,clstd = self.anal_cleaned(nsim=nsim)
+        ell = np.arange(len(Emean))
+        spectra = CMBspectra(tau=self.tau)
+        plt.figure()
+        plt.loglog(ell,spectra.EE[ell],label='Signal')
+        plt.errorbar(ell,Emean,yerr=Estd,fmt='o',label='CMB')
+        plt.errorbar(ell,clmean*1e12/0.54,yerr=clstd*1e12/0.54,fmt='o',label='Cleaned')
+        plt.legend()
+    
+    
+
+
 
 
     
