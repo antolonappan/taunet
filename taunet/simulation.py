@@ -300,4 +300,103 @@ class MakeSims:
             print("Saved {}".format(fmask))
 
 
+    def make_params(self,band,dire='./',ret=False):
+        assert band in [100,143], "Band must be 143 or 100"
+
+        fname = os.path.join(dire,f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini")
+
+        if band == 100:
+            bega=0.005
+            enda=0.015
+            begb=0.015
+            endb=0.022
+        elif band == 143:
+            bega=0.000
+            enda=0.015
+            begb=0.038
+            endb=0.041
+
+        params = f"""
+        maskfile={self.maskpath}
+
+        ncvmfilesync=/marconi/home/userexternal/aidicher/luca/wmap/wmap_K_coswin_ns16_9yr_v5_covmat.bin
+        ncvmfiledust={os.path.join(self.ncm_dir,'ncm_353.bin')}
+        ncvmfile={os.path.join(self.ncm_dir,f'ncm_{band}.bin')}
         
+        root_datasync={os.path.join(self.simdir,'sky_23_')}
+        root_datadust={os.path.join(self.simdir,'sky_353_')}
+        root_data={os.path.join(self.simdir,f'sky_{band}_')}
+
+        root_out_cleaned_map={os.path.join(self.clean_dir,f'cleaned_{band}_')}
+        file_scalings={os.path.join(self.clean_dir,f'cleaned_{band}_')}
+
+        fiducialfile={self.spectrafile}
+
+        ordering=1
+        nside= 16
+        lmax=64
+        calibration= 1e6
+        do_signal_covmat=T
+        calibration_S_cov=1.0
+
+        use_beam_file=T
+        beam_file=/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits
+        regularization_noise_S_covmat=0.020
+        do_likelihood_marginalization=F
+
+        na=320
+        nb=320
+
+        bega={bega}
+        enda={enda}
+        begb={begb}
+        endb={endb}
+        use_complete_covmat=T
+        minimize_chi2=T
+        output_clean_dataset=T
+
+
+        add_polarization_white_noise=F
+        output_covariance=F
+        template_marginalization=F
+        ssim=0
+        nsim={self.nsim}
+
+        zerofill = 6
+        suffix_map = .fits 
+        """
+        f = open(fname, "wt")
+        f.write(params)
+        f.close()
+        if ret:
+            return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini"
+    
+    def submit_job(self,band,dire='./'):
+        assert band in [100,143], "Band must be 143 or 100"
+        fname = self.make_params(band,dire=dire,ret=True)
+
+        slurm = f"""
+        #!/bin/bash -l
+
+        #SBATCH -p skl_usr_dbg
+        #SBATCH --nodes=2
+        #SBATCH --ntasks-per-node=48
+        #SBATCH --cpus-per-task=1
+        #SBATCH -t 00:30:00
+        #SBATCH -J test
+        #SBATCH -o test.out
+        #SBATCH -e test.err
+        #SBATCH -A INF23_litebird
+        #SBATCH --export=ALL
+        #SBATCH --mem=182000
+        #SBATCH --mail-type=ALL
+
+        source ~/.bash_profile
+        cd /marconi/home/userexternal/aidicher/workspace/taunet/taunet/template_fitting
+        export OMP_NUM_THREADS=2
+
+        srun grid_compsep_mpi.x {fname}
+        """
+        f = open(fname, "wt")
+        f.write(params)
+        f.close()
