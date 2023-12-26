@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 __path__ = os.path.dirname(os.path.realpath(__file__))
 DATADIR = os.path.join(__path__,'..','Data')
+os.makedirs(DATADIR, exist_ok=True)
 
 
 __LINK__ = 'https://figshare.com/ndownloader/files/'
@@ -17,6 +18,7 @@ __FILES__ =  {'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat':[43
               'wmap_K_coswin_ns16_9yr_v5_covmat.bin':[43491483,'7f271b328e5edfc63f1dc2d822200bd7'],
               'beam_coswin_ns16.fits':[43491582,'c5543348abad26a88c1a9a574212934e'],
               'mask_pol_nside16.dat':[43491585,'28db044800168128d355c8275675c72d'],
+              'beam_coswin_ns16.fits':[43715016,'c5543348abad26a88c1a9a574212934e'],
             }
 
 def md5(fname):

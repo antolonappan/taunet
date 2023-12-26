@@ -6,10 +6,11 @@ import healpy as hp
 import pysm3
 import pysm3.units as u
 from taunet.ncm import NoiseModel,NoiseModelGaussian
+from taunet import DATADIR
 import os
 import pickle as pl
 
-cosbeam = hp.read_cl('/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits')[0]
+cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
 def cli(cl):
     ret = np.zeros_like(cl)
@@ -56,14 +57,25 @@ class CMBspectra:
 
 class CMBmap:
 
-    def __init__(self,libdir,nsim,tau):
+    def __init__(self,libdir,tau,nsim=None):
         self.libdir = os.path.join(libdir,"CMB")
+        self.specdir = os.path.join(libdir,"SPECTRA")
         os.makedirs(self.libdir,exist_ok=True)
+        os.makedirs(self.specdir,exist_ok=True)
         self.nsim = nsim
         self.tau = tau
-        self.EE = CMBspectra(tau=tau).EE
         self.NSIDE = 16
         self.lmax = 3*self.NSIDE-1
+    
+    @property
+    def EE(self):
+        fname = os.path.join(self.specdir,f'spectra_tau_{self.tau}.pkl')
+        if os.path.isfile(fname):
+            return pl.load(open(fname,'rb'))
+        else:
+            ee = CMBspectra(tau=self.tau).EE
+            pl.dump(ee,open(fname,'wb'))
+            return ee
     
     def alm(self,idx=None):
         if idx is None:
