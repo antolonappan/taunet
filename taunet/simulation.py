@@ -163,13 +163,7 @@ class SkySimulation:
         self.noise_g = noise_g
 
     
-    def apply_beam(self,QU):
-        beam = self.get_beam()
-        TQU = [np.zeros_like(QU[0]),QU[0],QU[1]] 
-        alms = hp.map2alm(TQU, lmax=self.CMB.lmax)
-        hp.almxfl(alms[1], beam, inplace=True)
-        hp.almxfl(alms[2], beam, inplace=True)
-        return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
+
 
     def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,nlevp=55):
         QU = self.CMB.QU(idx=idx,beam=True)
@@ -201,7 +195,7 @@ class SkySimulation:
 
             QU += noise
 
-        #QU = self.apply_beam(QU)*self.noise.polmask('ring')
+
         if unit=='uK':
             pass
         elif unit=='K':
