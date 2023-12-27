@@ -86,3 +86,6 @@ class TauNet:
         )
 
         return history
+    
+    def predict(self,X_test):
+        return self.model.predict(X_test)

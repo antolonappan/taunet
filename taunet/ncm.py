@@ -4,7 +4,16 @@ import matplotlib.pyplot as plt
 import os
 from taunet import DATADIR
 import pickle as pkl
+from numba import njit,f8
 
+@njit
+def cho2map(cho):
+    pix = cho.shape[0]
+    noisem = np.random.normal(0,1,pix)
+    noisemap = np.dot(cho, noisem)
+    return noisemap
+    
+    
 cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
 def cli(cl):
@@ -206,9 +215,9 @@ class NoiseModel:
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
-        pix = ncm_cho.shape[0]
-        noisem = np.random.normal(0,1,pix)
-        noisemap = np.dot(ncm_cho, noisem)
+        #pix = ncm_cho.shape[0]
+        #noisem = np.random.normal(0,1,pix)
+        noisemap = cho2map(ncm_cho)#np.dot(ncm_cho, noisem)
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
 
         
@@ -234,7 +243,7 @@ class NoiseModel:
         
 class NoiseModelGaussian:
 
-    def __init__(self,nside,nlevp):
+    def __init__(self,nlevp=55,nside=16):
         self.libdir = os.path.join(DATADIR,'choleskyGaussian')
         os.makedirs(self.libdir,exist_ok=True)
         self.nside = nside
@@ -258,7 +267,7 @@ class NoiseModelGaussian:
         ncm[self.npix:,self.npix:] *= (sigma_p** 2)
         return ncm * fac
     
-    def noisemaps(self,unit='uK'):
+    def noisemap(self,unit='uK'):
         fname = os.path.join(self.libdir,f"cholesky_{str(self.nlevt).replace('.','p')}_{str(self.nlevp).replace('.','p')}_{unit}.pkl")
         if os.path.isfile(fname):
             cho = pkl.load(open(fname,'rb'))
@@ -266,8 +275,8 @@ class NoiseModelGaussian:
             ncm = self.ncm(unit)
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
-        noisemaps = np.dot(cho,np.random.normal(0.,1.,cho.shape[0]))
-        return noisemaps[:self.npix],noisemaps[self.npix:2*self.npix],noisemaps[2*self.npix:]
+        noisemaps = cho2map(cho)#np.dot(cho,np.random.normal(0.,1.,cho.shape[0]))
+        return np.array([noisemaps[self.npix:2*self.npix],noisemaps[2*self.npix:]])
     
     def Emode(self,unit='uK'):
         T,Q,U = self.noisemaps(unit)

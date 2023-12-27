@@ -13,6 +13,8 @@ import subprocess
 
 cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
+
+
 def cli(cl):
     ret = np.zeros_like(cl)
     ret[np.where(cl > 0)] = 1. / cl[np.where(cl > 0)]
@@ -88,18 +90,13 @@ class CMBmap:
         return Elm
     
     def QU(self,idx=None,beam=False):
-        fname = os.path.join(self.libdir,f"QU_b{int(beam)}.pkl" if idx is None else f"QU_b{int(beam)}_{idx:04d}.pkl")
-        if os.path.isfile(fname):
-            QU = pl.load(open(fname,"rb"))
-        else:
-            alm = self.alm(idx=idx)
-            if beam:
-                hp.almxfl(alm,cosbeam,inplace=True)
-            dummy = np.zeros_like(alm)
-            TQU = hp.alm2map([dummy,alm,dummy], self.NSIDE)
-            QU = TQU[1:].copy()
-            del (alm,dummy,TQU)
-            pl.dump(QU,open(fname,"wb"))
+        alm = self.alm(idx=idx)
+        if beam:
+            hp.almxfl(alm,cosbeam,inplace=True)
+        dummy = np.zeros_like(alm)
+        TQU = hp.alm2map([dummy,alm,dummy], self.NSIDE)
+        QU = TQU[1:].copy()
+        del (alm,dummy,TQU)
 
         return QU
     
@@ -146,24 +143,23 @@ class FGMap:
 
 class SkySimulation:
 
-    def __init__(self,libdir,nsim,tau,fg,cmb_const=True,fg_const=True,noise_g=False):
-        if cmb_const:
-            self.qu_cmb = CMBmap(libdir,nsim,tau).QU(beam=True)
+    def __init__(self,libdir,tau,add_noise=True,add_fg=True,fg=['s0','d0'],nsim=None,fg_const=True,noise_g=False):
+
         if fg_const:
-            self.qu_fg_23 = FGMap(libdir,fg).QU(23,beam=True)
-            self.qu_fg_30 = FGMap(libdir,fg).QU(30,beam=True)
-            self.qu_fg_100 = FGMap(libdir,fg).QU(100,beam=True)
-            self.qu_fg_143 = FGMap(libdir,fg).QU(143,beam=True)
-            self.qu_fg_353 = FGMap(libdir,fg).QU(353,beam=True)
+            self.qu_fg_23 = FGMap(libdir,fg).QU(23) if add_fg else None
+            self.qu_fg_30 = FGMap(libdir,fg).QU(30) if add_fg else None
+            self.qu_fg_100 = FGMap(libdir,fg).QU(100) if add_fg else None
+            self.qu_fg_143 = FGMap(libdir,fg).QU(143) if add_fg else None
+            self.qu_fg_353 = FGMap(libdir,fg).QU(353) if add_fg else None
         
         self.CMB = CMBmap(libdir,nsim,tau)
         self.FG = FGMap(libdir,fg)
         self.noise = NoiseModel()
         self.nsim = nsim
         self.nside = self.CMB.NSIDE
-        self.cmb_const = cmb_const
         self.fg_const = fg_const
-
+        self.add_fg = add_fg
+        self.add_noise = add_noise
         self.noise_g = noise_g
 
     
@@ -175,33 +171,36 @@ class SkySimulation:
         hp.almxfl(alms[2], beam, inplace=True)
         return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
 
-    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,nlevp=None):
-        if self.cmb_const:
-            cmb = self.qu_cmb
-        else:
-            cmb = self.CMB.QU(idx=idx,beam=True)
-        if self.fg_const:
-            if band == 23:
-                fg = self.qu_fg_23
-            elif band == 30:
-                fg = self.qu_fg_30
-            elif band == 100:
-                fg = self.qu_fg_100
-            elif band == 143:
-                fg = self.qu_fg_143
-            elif band == 353:
-                fg = self.qu_fg_353
+    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,nlevp=55):
+        QU = self.CMB.QU(idx=idx,beam=True)
+        if self.add_fg:
+            if self.fg_const:
+                if band == 23:
+                    fg = self.qu_fg_23
+                elif band == 30:
+                    fg = self.qu_fg_30
+                elif band == 100:
+                    fg = self.qu_fg_100
+                elif band == 143:
+                    fg = self.qu_fg_143
+                elif band == 353:
+                    fg = self.qu_fg_353
+                else:
+                    raise ValueError("Band should be 100 or 143")
             else:
-                raise ValueError("Band should be 100 or 143")
-        else:
-            fg = self.FG.QU(band,beam=True)
-        
-        if not self.noise_g:
-            noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
-        else:
-            assert nlevp is not None, "nlevp must be specified"
-            noise = NoiseModelGaussian(self.nside,nlevp).noisemaps('uK')[1:]
-        QU = cmb + fg + noise
+                fg = self.FG.QU(band,beam=True)
+
+            QU += fg
+
+        if self.add_noise:
+            if not self.noise_g:
+                noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
+            else:
+                assert nlevp is not None, "nlevp must be specified"
+                noise = NoiseModelGaussian(self.nside,nlevp).noisemaps('uK')[1:]
+
+            QU += noise
+
         #QU = self.apply_beam(QU)*self.noise.polmask('ring')
         if unit=='uK':
             pass
