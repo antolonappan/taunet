@@ -5,15 +5,13 @@ import camb
 import healpy as hp
 import pysm3
 import pysm3.units as u
-from taunet.ncm import NoiseModel,NoiseModelGaussian
+from taunet.ncm import NoiseModel,NoiseModelDiag
 from taunet import DATADIR
 import os
 import pickle as pl
 import subprocess
 
-cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
-
-
+cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_440T_coswinP_pixwin16.fits'))[1]
 
 def cli(cl):
     ret = np.zeros_like(cl)
@@ -67,6 +65,7 @@ class CMBmap:
         os.makedirs(self.specdir,exist_ok=True)
         self.nsim = nsim
         self.tau = tau
+        print('tau = {}'.format(tau))
         self.NSIDE = 16
         self.lmax = 3*self.NSIDE-1
     
@@ -115,7 +114,7 @@ class FGMap:
         self.NSIDE = 16
         self.lmax = 3*self.NSIDE-1
 
-    def QU(self,band,seed=None,beam=False):
+    def QU(self,band,seed=None,beam=True):
         seed = 261092 if seed is None else seed
         fname = os.path.join(self.libdir,f"QU_b{int(beam)}_{seed}_{band}.pkl")
         if os.path.isfile(fname):
@@ -143,7 +142,7 @@ class FGMap:
 
 class SkySimulation:
 
-    def __init__(self,libdir,tau,add_noise=True,add_fg=True,fg=['s0','d0'],nsim=None,fg_const=True,noise_g=False):
+    def __init__(self,libdir,tau,add_noise=True,add_fg=True,fg=['s0','d0'],nsim=None,ssim=0,fg_const=True,noise_g=False,fullsky=False):
 
         if fg_const:
             self.qu_fg_23 = FGMap(libdir,fg).QU(23) if add_fg else None
@@ -152,57 +151,69 @@ class SkySimulation:
             self.qu_fg_143 = FGMap(libdir,fg).QU(143) if add_fg else None
             self.qu_fg_353 = FGMap(libdir,fg).QU(353) if add_fg else None
         
-        self.CMB = CMBmap(libdir,nsim,tau)
+        self.CMB = CMBmap(libdir,tau,nsim)
         self.FG = FGMap(libdir,fg)
         self.noise = NoiseModel()
         self.nsim = nsim
+        self.ssim = ssim
         self.nside = self.CMB.NSIDE
         self.fg_const = fg_const
         self.add_fg = add_fg
         self.add_noise = add_noise
         self.noise_g = noise_g
+        if fullsky:
+            self.mask = np.ones(hp.nside2npix(self.nside))
+        else:
+            self.mask = self.noise.polmask('ring')
+        
+        self.fullsky = fullsky
 
-    
 
 
-    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False,nlevp=55):
-        QU = self.CMB.QU(idx=idx,beam=True)
+    def apply_beam(self,QU):
+        beam = self.get_beam()
+        TQU = [np.zeros_like(QU[0]),QU[0],QU[1]] 
+        alms = hp.map2alm(TQU, lmax=self.CMB.lmax)
+        hp.almxfl(alms[1], beam, inplace=True)
+        hp.almxfl(alms[2], beam, inplace=True)
+        return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
+
+    def QU(self,band,idx=None,unit='uK',order='ring',beam=True,deconvolve=False):
+        cmb = self.CMB.QU(idx=idx+self.ssim,beam=True)
+        if self.fg_const:
+            if band == 23:
+                fg = self.qu_fg_23
+            elif band == 30:
+                fg = self.qu_fg_30
+            elif band == 100:
+                fg = self.qu_fg_100
+            elif band == 143:
+                fg = self.qu_fg_143
+            elif band == 353:
+                fg = self.qu_fg_353
+            else:
+                raise ValueError("Band should be 100 or 143")
+        else:
+            fg = self.FG.QU(band,beam=True)
+        
+        if not self.noise_g:
+            noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
+        else:
+            noise = NoiseModelDiag(self.nside).noisemap()
+        
+        QU = cmb
         if self.add_fg:
-            if self.fg_const:
-                if band == 23:
-                    fg = self.qu_fg_23
-                elif band == 30:
-                    fg = self.qu_fg_30
-                elif band == 100:
-                    fg = self.qu_fg_100
-                elif band == 143:
-                    fg = self.qu_fg_143
-                elif band == 353:
-                    fg = self.qu_fg_353
-                else:
-                    raise ValueError("Band should be 100 or 143")
-            else:
-                fg = self.FG.QU(band,beam=True)
-
-            QU += fg
-
+            QU += fg 
         if self.add_noise:
-            if not self.noise_g:
-                noise = self.noise.noisemap(band,'ring','uK',deconvolve=deconvolve)
-            else:
-                assert nlevp is not None, "nlevp must be specified"
-                noise = NoiseModelGaussian(self.nside,nlevp).noisemaps('uK')[1:]
-
             QU += noise
-
-
+        #QU = self.apply_beam(QU)*self.noise.polmask('ring')
         if unit=='uK':
             pass
         elif unit=='K':
             QU *= 1e-6
         else:
             raise ValueError('unit must be uK or K')
-        QU = QU * self.noise.polmask('ring')
+        QU = QU * self.mask
         if order=='ring':
             pass
         elif order=='nested':
@@ -218,10 +229,13 @@ class SkySimulation:
     
 
 class MakeSims:
-    def __init__(self,out_dir,fg=['s0','d0'],nside=16,noise_g=False,tau=0.06,nsim=100,ssim=0):
+    def __init__(self,out_dir,fg=['s0','d0'],nside=16,noise_g=False,tau=0.06,nsim=100,ssim=0,fullsky=False):
         out_dir = out_dir
         os.makedirs(out_dir,exist_ok=True)
-        simdir = os.path.join(out_dir,'SIMULATIONS_'+''.join(fg) + f'N_{int(noise_g)}')
+        if fullsky:
+            simdir = os.path.join(out_dir,'SIMULATIONS_'+''.join(fg) + f'N_{int(noise_g)}_fullsky')
+        else:
+            simdir = os.path.join(out_dir,'SIMULATIONS_'+''.join(fg) + f'N_{int(noise_g)}')
         os.makedirs(simdir,exist_ok=True)
         spectra_dir = os.path.join(out_dir,'SPECTRA')
         os.makedirs(spectra_dir,exist_ok=True)
@@ -243,30 +257,29 @@ class MakeSims:
 
         self.noise_g = noise_g
 
-        tau = tau
         nsim = nsim
 
         self.nsim  = nsim
         self.ssim = ssim
     
-        noise_levels = {'23': 61,
-                        '100': 55,
-                        '143': 54,
-                        '353': 60,}
+
         self.tau = tau
         
-        sky = SkySimulation(out_dir,nsim,tau,fg,cmb_const=False,noise_g=noise_g)
+        sky = SkySimulation(out_dir,tau,fg=fg,noise_g=noise_g,nsim=nsim,fullsky=fullsky)
 
         self.sky = sky
 
         for f in [23,100,143,353]:
             for i in tqdm(range(nsim),desc=f"Generating {f} GHz maps",unit='sim'):
-                fname = os.path.join(simdir,f'sky_{f}_{i:06d}.fits')
+                fname = os.path.join(simdir,f'sky_{f}_{i+self.ssim:06d}.fits')
                 if not os.path.isfile(fname):
-                    Q, U = sky.QU(f,idx=i,unit='K',order='nested',nlevp=noise_levels[str(f)])
+                    Q, U = sky.QU(f,idx=i+self.ssim,unit='uK' if (fullsky or noise_g) else 'K',order='nested')
                     hp.write_map(fname,[Q*0,Q,U],nest=True,dtype=np.float64)
         
-        clean_dir = os.path.join(out_dir,'CLEAN_'+''.join(fg) + f'N_{int(noise_g)}')
+        if fullsky:
+            clean_dir = os.path.join(out_dir,'CLEAN_'+''.join(fg) + f'N_{int(noise_g)}_fullsky')
+        else:
+            clean_dir = os.path.join(out_dir,'CLEAN_'+''.join(fg) + f'N_{int(noise_g)}')
         os.makedirs(clean_dir,exist_ok=True)
 
         self.clean_dir = clean_dir
@@ -282,8 +295,8 @@ class MakeSims:
                 fname = os.path.join(ncm_dir,'ncm_{}.bin'.format(f))
                 if os.path.isfile(fname):
                     continue 
-                ncm = NoiseModelGaussian(16,noise_levels[str(f)])
-                cov = ncm.ncm('K')
+                ncm = NoiseModelDiag(16)
+                cov = ncm.ncm('uK')
                 cov.tofile(fname)
                 print("Saved {}".format(fname))
         else:
@@ -300,34 +313,68 @@ class MakeSims:
                 cov.tofile(fname)
                 print("Saved {}".format(fname))
         
-        fmask = os.path.join(out_dir,'mask.fits')
+        if fullsky:
+            fmask = os.path.join(out_dir,'mask_fullsky.fits')
+        else:
+            fmask = os.path.join(out_dir,'mask.fits')
         self.maskpath = fmask
         if not os.path.isfile(fmask):
             print("Generating mask")
-            ncm = NoiseModel()
-            mask = ncm.polmask('nested')
-            hp.write_map(fmask,[mask,mask,mask],nest=True)
+            if fullsky:
+                mask = np.ones(hp.nside2npix(16))
+                hp.write_map(fmask,[mask,mask,mask],nest=True)
+            else:
+                ncm = NoiseModel()
+                mask = ncm.polmask('nested')
+                hp.write_map(fmask,[mask,mask,mask],nest=True)
             print("Saved {}".format(fmask))
+        
+        self.fullsky = fullsky
 
 
     def make_params(self,band,dire='./',ret=False):
         assert band in [100,143], "Band must be 143 or 100"
 
-        fname = os.path.join(dire,f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini")
+        if self.fullsky:
+            fname = os.path.join(dire,f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky.ini")
+        else:
+            fname = os.path.join(dire,f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini")
+        
+        if (self.noise_g or self.fullsky):
+            nab = 80
+            calib = 1e0
+        else:
+            calib = 1e6
+            nab = 320
+        
+
+
+        if self.noise_g:
+            ncvmfilesync = os.path.join(self.ncm_dir,'ncm_23.bin')
+        else:
+            ncvmfilesync = '/marconi/home/userexternal/aidicher/luca/wmap/wmap_K_coswin_ns16_9yr_v5_covmat.bin'
 
         if band == 100:
-            bega=0.005
-            enda=0.015
-            begb=0.015
-            endb=0.022
+            bega=0.010
+            enda=0.020
+            begb=0.016
+            endb=0.028
+            #bega=0.005
+            #enda=0.015
+            #begb=0.015
+            #endb=0.022
         elif band == 143:
             bega=0.000
-            enda=0.015
-            begb=0.038
-            endb=0.041
+            enda=0.010
+            begb=0.035
+            endb=0.045
+            #bega=0.000
+            #enda=0.015
+            #begb=0.038
+            #endb=0.041
 
         params = f"""maskfile={self.maskpath}
-ncvmfilesync=/marconi/home/userexternal/aidicher/luca/wmap/wmap_K_coswin_ns16_9yr_v5_covmat.bin
+ncvmfilesync={ncvmfilesync}
 ncvmfiledust={os.path.join(self.ncm_dir,'ncm_353.bin')}
 ncvmfile={os.path.join(self.ncm_dir,f'ncm_{band}.bin')}
             
@@ -343,17 +390,17 @@ fiducialfile={self.spectrafile}
 ordering=1
 nside= 16
 lmax=64
-calibration= 1e6
+calibration= {calib}
 do_signal_covmat=T
 calibration_S_cov=1.0
 
 use_beam_file=T
-beam_file=/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_coswin_ns16.fits
-regularization_noise_S_covmat=0.020
+beam_file=/marconi/home/userexternal/aidicher/luca/lowell-likelihood-analysis/ancillary/beam_440T_coswinP_pixwin16.fits
+regularization_noise_S_covmat=0.0
 do_likelihood_marginalization=F
 
-na=320
-nb=320
+na={nab}
+nb={nab}
 
 bega={bega}
 enda={enda}
@@ -377,32 +424,46 @@ suffix_map = .fits
         f.write(params)
         f.close()
         if ret:
-            return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini"
+            if self.fullsky:
+                return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky.ini"
+            else:
+                return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.ini"
+        
     
     def job_file(self,band,dire='./',ret=False):
         assert band in [100,143], "Band must be 143 or 100"
         pname = self.make_params(band,dire=dire,ret=True)
-        fname = os.path.join(dire,f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.sh")
+        if self.fullsky:
+            fname = os.path.join(dire,f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky.sh")
+        else:
+            fname = os.path.join(dire,f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}.sh")
+
+        if self.fullsky:
+            q = 'skl_usr_dbg'
+            ti = '00:30:00'
+        else:
+            q = 'skl_usr_dbg'
+            ti = '00:30:00'
 
         if not os.path.isfile(fname):
             slurm = f"""#!/bin/bash -l
 
-#SBATCH -p skl_usr_dbg
+#SBATCH -p {q}
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=48
 #SBATCH --cpus-per-task=1
-#SBATCH -t 00:30:00
+#SBATCH -t {ti}
 #SBATCH -J test
 #SBATCH -o test.out
 #SBATCH -e test.err
-#SBATCH -A INF23_litebird
+#SBATCH -A INF24_litebird
 #SBATCH --export=ALL
 #SBATCH --mem=182000
 #SBATCH --mail-type=ALL
 
 source ~/.bash_profile
 cd /marconi/home/userexternal/aidicher/workspace/taunet/taunet/template_fitting
-export OMP_NUM_THREADS=2
+export OMP_NUM_THREADS=1
 
 srun grid_compsep_mpi.x {pname}
 """
@@ -418,17 +479,18 @@ srun grid_compsep_mpi.x {pname}
         os.system(f"sbatch {fname}")
 
     
-    def anal_cleaned(self,nsim=20):
+    def anl_cleaned(self,nsim=20,ret_full=False,ret_cmb=True):
         cmb = self.sky.CMB
-        Earr = []
-        for i in tqdm(range(nsim)):
-            CMB_QU = cmb.QU(idx=i,beam=True)
-            cmb_alm = hp.map2alm_spin(CMB_QU,spin=2)
-            ee = hp.alm2cl(cmb_alm[0])
-            Earr.append(ee)
-        Earr = np.array(Earr)
-        Emean = np.mean(Earr,axis=0)
-        Estd = np.std(Earr,axis=0)
+        if ret_cmb:
+            Earr = []
+            for i in tqdm(range(nsim)):
+                CMB_QU = cmb.QU(idx=i,beam=True)
+                cmb_alm = hp.map2alm_spin(CMB_QU,spin=2)
+                ee = hp.alm2cl(cmb_alm[0])
+                Earr.append(ee)
+            Earr = np.array(Earr)
+            Emean = np.mean(Earr,axis=0)
+            Estd = np.std(Earr,axis=0)
         cl = []
         for i in tqdm(range(nsim)):
             fname1 = os.path.join(self.clean_dir,f'cleaned_100_{i:06d}.fits')
@@ -442,22 +504,30 @@ srun grid_compsep_mpi.x {pname}
         cl = np.array(cl)
         clmean = np.mean(cl,axis=0)
         clstd = np.std(cl,axis=0)
-        return Emean,Estd,clmean,clstd
+        if ret_full:
+            if ret_cmb:
+                return Earr,cl
+            else:
+                return cl
+        else:
+            return Emean,Estd,clmean,clstd
     
-    def plot_cleaned(self,nsim=20):
-        Emean,Estd,clmean,clstd = self.anal_cleaned(nsim=nsim)
+    def plot_cleaned(self,nsim=20,unit='uK'):
+        if unit == 'uK':
+            fac = 1
+        elif unit == 'K':
+            fac = 1e12
+        else:
+            raise ValueError('unit must be uK or K')
+        
+        Emean,Estd,clmean,clstd = self.anl_cleaned(nsim=nsim)
         ell = np.arange(len(Emean))
         spectra = CMBspectra(tau=self.tau)
         plt.figure()
         plt.loglog(ell,spectra.EE[ell],label='Signal')
         plt.errorbar(ell,Emean,yerr=Estd,fmt='o',label='CMB')
-        plt.errorbar(ell,clmean*1e12/0.54,yerr=clstd*1e12/0.54,fmt='o',label='Cleaned')
+        if self.fullsky:
+            plt.errorbar(ell,clmean,yerr=clstd,fmt='o',label='Cleaned')
+        else:
+            plt.errorbar(ell,clmean*fac/0.54,yerr=clstd*fac/0.54,fmt='o',label='Cleaned')
         plt.legend()
-    
-    
-
-
-
-
-    
-

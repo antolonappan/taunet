@@ -241,14 +241,10 @@ class NoiseModel:
         Q,U = self.noisemap(freq,'ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
-class NoiseModelGaussian:
+class NoiseModelDiag:
 
-    def __init__(self,nlevp=55,nside=16):
-        self.libdir = os.path.join(DATADIR,'choleskyGaussian')
-        os.makedirs(self.libdir,exist_ok=True)
+    def __init__(self,nside=16):
         self.nside = nside
-        self.nlevp = nlevp
-        self.nlevt = nlevp * np.sqrt(2.)
         self.npix = hp.nside2npix(self.nside)
     
     def ncm(self,unit='uK'):
@@ -260,26 +256,16 @@ class NoiseModelGaussian:
         else:
             raise ValueError('unit not recognized')
         
-        pix_amin2 = 4. * np.pi / float(hp.nside2npix(self.nside)) * (180. * 60. / np.pi) ** 2
-        sigma_t = np.sqrt(self.nlevt ** 2 / pix_amin2)
-        sigma_p = np.sqrt(self.nlevp ** 2 / pix_amin2)
-        ncm[:self.npix,:self.npix] *= (sigma_t** 2)
-        ncm[self.npix:,self.npix:] *= (sigma_p** 2)
-        return ncm * fac
+  
+        sigma = 0.01
+        return ncm * sigma * fac
     
     def noisemap(self,unit='uK'):
-        fname = os.path.join(self.libdir,f"cholesky_{str(self.nlevt).replace('.','p')}_{str(self.nlevp).replace('.','p')}_{unit}.pkl")
-        if os.path.isfile(fname):
-            cho = pkl.load(open(fname,'rb'))
-        else:
-            ncm = self.ncm(unit)
-            cho = np.linalg.cholesky(ncm)
-            pkl.dump(cho,open(fname,'wb'))
-        noisemaps = cho2map(cho)#np.dot(cho,np.random.normal(0.,1.,cho.shape[0]))
-        return np.array([noisemaps[self.npix:2*self.npix],noisemaps[2*self.npix:]])
+        sigma_pix = 0.01
+        return np.array([np.random.normal(0,sigma_pix,self.npix),np.random.normal(0,sigma_pix,self.npix)])
     
     def Emode(self,unit='uK'):
-        T,Q,U = self.noisemaps(unit)
+        Q,U = self.noisemaps(unit)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
 
 # def swap_diagonal(matrixa, new_order_indices):
