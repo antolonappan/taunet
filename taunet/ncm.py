@@ -14,7 +14,10 @@ def cho2map(cho):
     return noisemap
     
     
-cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
+try:
+    cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_440T_coswinP_pixwin16.fits'))[1]
+except FileNotFoundError:
+    cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
 
 def cli(cl):
     ret = np.zeros_like(cl)
