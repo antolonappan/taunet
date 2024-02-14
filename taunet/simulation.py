@@ -345,7 +345,7 @@ class MakeSims:
             calib = 1e0
         else:
             calib = 1e6
-            nab = 320
+            nab = 80
         
 
 
