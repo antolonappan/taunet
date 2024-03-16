@@ -5,10 +5,12 @@ import os
 from taunet import DATADIR
 import pickle as pkl
 from numba import njit,f8
+from warnings import warn
 
-@njit
-def cho2map(cho):
+
+def cho2map(cho,idx=None):
     pix = cho.shape[0]
+    np.random.seed(152+idx if idx else 0)
     noisem = np.random.normal(0,1,pix)
     noisemap = np.dot(cho, noisem)
     return noisemap
@@ -24,14 +26,15 @@ def cli(cl):
 class NoiseModel:
     #Roger et.al
 
-    def __init__(self):
+    def __init__(self,diag=False):
         self.nside = 16
         self.npix = 12*self.nside**2
         self.dtype = np.float32
+        self.diag = diag
 
         # directory
         self.__cfd__ = DATADIR
-        self.__cholesky__ = os.path.join(self.__cfd__,'cholesky')
+        self.__cholesky__ = os.path.join(self.__cfd__,f"cholesky{'' if not diag else '_diag'}")
         os.makedirs(self.__cholesky__,exist_ok=True)
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
@@ -136,12 +139,18 @@ class NoiseModel:
         del (ncm,lambdaI)
         return ncmqu
     
+    def __offdiag_to_zeros__(self,mat: np.ndarray) -> np.ndarray:
+        return np.diag(np.diag(mat))
+    
     def get_ncm(self,freq,unit='uK'):
         if freq not in self.ncms.keys():
             raise ValueError('Freq must be one of {}'.format(self.ncms.keys()))
         
         if freq==23:
-            return self.__get_ncm23__(unit=unit)
+            if self.diag:
+                return self.__offdiag_to_zeros__(self.__get_ncm23__(unit=unit))
+            else:
+                return self.__get_ncm23__(unit=unit)
         
         ncm_dir = self.ncms[freq]
         fac = 1
@@ -151,12 +160,18 @@ class NoiseModel:
             fac = 1e-12
         else:
             raise ValueError('unit must be uK or K')
-        return np.float64(self.inpcovmat(ncm_dir,double_prec=False)) *fac
+        if self.diag:
+            return self.__offdiag_to_zeros__(self.inpcovmat(ncm_dir,double_prec=False))*fac
+        else:
+            return np.float64(self.inpcovmat(ncm_dir,double_prec=False)) *fac
     
     def get_full_ncm(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
         ncm = self.get_ncm(freq,unit=unit)
         
-        ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask('ring'),self.polmask('ring')]))
+        if (freq == 23) and self.diag:
+            ncm_pol = ncm
+        else:
+            ncm_pol =  self.unmask_matrix(ncm,np.concatenate([self.polmask('ring'),self.polmask('ring')]))
         if order=='ring':
             pass
         elif order=='nested':
@@ -178,15 +193,15 @@ class NoiseModel:
         else:
             return NCM
     
-    def __noisemap23__(self,order='nested',unit='K'):
-        fname = os.path.join(self.__cholesky__,'cholesky_23_nested.pkl')
-        if os.path.exists(fname):
-            ncm_cho = pkl.load(open(fname,'rb'))
+    def __noisemap23__(self,idx=None,order='nested',unit='K'):
+        if self.diag:
+            ncm = self.__offdiag_to_zeros__(self.__get_ncm23__(unit='K'))
         else:
-            ncm = self.__get_ncm23__(unit=unit)
-            ncm_cho = np.linalg.cholesky(ncm)
-            pkl.dump(ncm_cho,open(fname,'wb'))
+            ncm = self.__get_ncm23__(unit='K')
+        ncm_cho = np.linalg.cholesky(ncm)
         pix = ncm_cho.shape[0]
+        seed = 152 + (0 if idx is None else idx)
+        np.random.seed(seed)
         noisem = np.random.normal(0,1,pix)
         noisemap = np.dot(ncm_cho, noisem)
         QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
@@ -199,25 +214,20 @@ class NoiseModel:
             QU *=1e6
         return QU
     
-    def noisemap(self,freq,order='ring',unit='uK',deconvolve=False):
+    def noisemap(self,freq,idx=None,order='ring',unit='uK',deconvolve=False):
         if freq == 23:
-            return self.__noisemap23__(order=order,unit=unit)
+            return self.__noisemap23__(idx=idx,order=order,unit=unit)
         
-        fname = os.path.join(self.__cholesky__,'cholesky_{}_{}.pkl'.format(freq,order))
-        if os.path.exists(fname):
-            ncm_cho = pkl.load(open(fname,'rb'))
-        else:
-            ncm = self.get_ncm(freq,unit=unit)
-            ncm_cho = np.linalg.cholesky(ncm)
-            pkl.dump(ncm_cho,open(fname,'wb'))
-        
-
+        ncm = self.get_ncm(freq,unit=unit)
+        ncm_cho = np.linalg.cholesky(ncm)
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
-        #pix = ncm_cho.shape[0]
-        #noisem = np.random.normal(0,1,pix)
-        noisemap = cho2map(ncm_cho)#np.dot(ncm_cho, noisem)
+        pix = ncm_cho.shape[0]
+        seed = 152 + (0 if idx is None else idx)
+        np.random.seed(seed)
+        noisem = np.random.normal(0,1,pix)
+        noisemap = np.dot(ncm_cho, noisem)
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
 
         
@@ -241,9 +251,11 @@ class NoiseModel:
         Q,U = self.noisemap(freq,'ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
+
 class NoiseModelDiag:
 
     def __init__(self,nside=16):
+        warn(f'Only for testing purpose, will be deprecated soon', DeprecationWarning, stacklevel=2)
         self.nside = nside
         self.npix = hp.nside2npix(self.nside)
     

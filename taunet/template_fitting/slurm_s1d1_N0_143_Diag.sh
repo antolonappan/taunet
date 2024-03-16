@@ -17,4 +17,4 @@ source ~/.bash_profile
 cd /marconi/home/userexternal/aidicher/workspace/taunet/taunet/template_fitting
 export OMP_NUM_THREADS=1
 
-srun grid_compsep_mpi.x params_s1d1_N0_143.ini
+srun grid_compsep_mpi.x params_s1d1_N0_143_Diag.ini
