@@ -11,8 +11,15 @@ import os
 import pickle as pl
 import subprocess
 
+<<<<<<< HEAD
 cosbeam = hp.read_cl(os.path.join(DATADIR, "beam_440T_coswinP_pixwin16.fits"))[1]
 
+=======
+try:
+    cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_440T_coswinP_pixwin16.fits'))[1]
+except FileNotFoundError:
+    cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_coswin_ns16.fits'))[0]
+>>>>>>> ff3b9ee1c43449785538e8cfe0fedefd7b1eaa1c
 
 def cli(cl):
     ret = np.zeros_like(cl)
