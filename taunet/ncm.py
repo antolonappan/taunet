@@ -251,7 +251,7 @@ class NoiseModel:
         return QU
     
     def Emode(self,freq,unit='uK',deconvolve=False):
-        Q,U = self.noisemap(freq,'ring',unit=unit,deconvolve=deconvolve)
+        Q,U = self.noisemap(freq,order='ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
 
