@@ -2,7 +2,7 @@ import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import os
-from taunet import DATADIR
+from taunet import DATADIR, SROLL2, FFP8
 import pickle as pkl
 from numba import njit,f8
 from warnings import warn
@@ -28,7 +28,8 @@ def cli(cl):
 class NoiseModel:
     #Roger et.al
 
-    def __init__(self,diag=False):
+    def __init__(self,diag=False,method='roger'):
+        assert method in ['roger','ffp8','sroll2'], 'method must be one of roger, ffp8, sroll2'
         self.nside = 16
         self.npix = 12*self.nside**2
         self.dtype = np.float32
@@ -36,21 +37,42 @@ class NoiseModel:
 
         # directory
         self.__cfd__ = DATADIR
-        self.__cholesky__ = os.path.join(self.__cfd__,f"cholesky{'' if not diag else '_diag'}")
+        self.__cholesky__ = os.path.join(self.__cfd__,f"cholesky_{method}{'' if not diag else '_diag'}")
         os.makedirs(self.__cholesky__,exist_ok=True)
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
         self.fsky = np.average(self.polmask('ring'))
+        self.method = method
 
 
         #NCM
-        self.ncms = {
-            23 : os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin'),
+        ncms_roger = {
            100 : os.path.join(self.__cfd__,'noise_SROLL20_100psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
            143 : os.path.join(self.__cfd__,'noise_SROLL20_143psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
            353 : os.path.join(self.__cfd__,'noise_SROLL20_353psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
         }
+        ncms_ffp8 = {
+            100 : os.path.join(FFP8,'dx11_ncm_100_combined_smoothed_nside0016.dat'),
+            143 : os.path.join(FFP8,'dx11_ncm_143_combined_smoothed_nside0016.dat'),
+            353 : os.path.join(FFP8,'dx11_ncm_353_combined_smoothed_nside0016.dat'),
+        }
+        ncms_sroll2 = {
+            100: os.path.join(SROLL2,'map_sroll2_100psb_coswin_ns16_full.fits'),
+            143: os.path.join(SROLL2,'map_sroll2_143psb_coswin_ns16_full.fits'),
+            353: os.path.join(SROLL2,'map_sroll2_353psb_coswin_ns16_full.fits'),
+        }
+
+
+        if method == 'roger':
+            self.ncms = ncms_roger
+        elif method == 'ffp8':
+            self.ncms = ncms_ffp8
+        elif method == 'sroll2':
+            self.ncms = ncms_sroll2
+ 
+        self.ncms[23] = os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin')
+
     
     
     def inpvec(self,fname, double_prec=True):
@@ -126,7 +148,10 @@ class NoiseModel:
         elif which == 'LFI':
             return fac_degrade_LFI*fac_ncm_LFI
     
-    def __get_ncm23__(self,unit='K'):
+    def __offdiag_to_zeros__(self,mat: np.ndarray) -> np.ndarray:
+        return np.diag(np.diag(mat))
+    
+    def __get_ncm23_roger__(self,unit='K'):
         if unit!='K':
             raise ValueError('unit must be K')
         ncm = np.fromfile(self.ncms[23])
@@ -137,18 +162,15 @@ class NoiseModel:
         del (ncm,lambdaI)
         return ncmqu
     
-    def __offdiag_to_zeros__(self,mat: np.ndarray) -> np.ndarray:
-        return np.diag(np.diag(mat))
-    
-    def get_ncm(self,freq,unit='uK'):
+    def get_ncm_roger(self,freq,unit='uK'):
         if freq not in self.ncms.keys():
             raise ValueError('Freq must be one of {}'.format(self.ncms.keys()))
         
         if freq==23:
             if self.diag:
-                return self.__offdiag_to_zeros__(self.__get_ncm23__(unit=unit))
+                return self.__offdiag_to_zeros__(self.__get_ncm23_roger__(unit=unit))
             else:
-                return self.__get_ncm23__(unit=unit)
+                return self.__get_ncm23_roger__(unit=unit)
         
         ncm_dir = self.ncms[freq]
         fac = 1
@@ -163,8 +185,8 @@ class NoiseModel:
         else:
             return np.float64(self.inpcovmat(ncm_dir,double_prec=False)) *fac
     
-    def get_full_ncm(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
-        ncm = self.get_ncm(freq,unit=unit)
+    def get_full_ncm_roger(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
+        ncm = self.get_ncm_roger(freq,unit=unit)
         
         if (freq == 23) and self.diag:
             ncm_pol = ncm
@@ -191,12 +213,12 @@ class NoiseModel:
         else:
             return NCM
     
-    def __noisemap23__(self,idx=None,order='nested',unit='K'):
+    def __noisemap23_roger__(self,idx=None,order='nested',unit='K'):
         fname = os.path.join(self.__cholesky__,f'cholesky23_{order}_{unit}.pkl')
         if self.diag:
-            ncm = self.__offdiag_to_zeros__(self.__get_ncm23__(unit='K'))
+            ncm = self.__offdiag_to_zeros__(self.__get_ncm23_roger__(unit='K'))
         else:
-            ncm = self.__get_ncm23__(unit='K')
+            ncm = self.__get_ncm23_roger__(unit='K')
         if os.path.exists(fname):
             cho = pkl.load(open(fname,'rb'))
         else:
@@ -222,10 +244,12 @@ class NoiseModel:
             QU *=1e6
         return QU
     
-    def noisemap(self,freq,idx=None,order='ring',unit='uK'):
+    def noisemap_roger(self,freq,idx=None,order='ring',unit='uK'):
+
+    
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if freq == 23:
-            return self.__noisemap23__(idx=idx,order=order,unit=unit)
+            return self.__noisemap23_roger__(idx=idx,order=order,unit=unit)
         
         ncm = self.get_ncm(freq,unit=unit)
         if os.path.exists(fname):
@@ -254,8 +278,86 @@ class NoiseModel:
             raise ValueError('order must be ring or nested')
         return QU
     
-    def Emode(self,freq,idx,unit='uK',deconvolve=False):
-        Q,U = self.noisemap(freq,idx,order='ring',unit=unit,deconvolve=deconvolve)
+    def get_ncm_generic(self,freq,unit='uK'):
+        ncm = np.fromfile(self.ncms[freq])
+        ncm = ncm.reshape(3*self.npix,3*self.npix)
+        ncmqu = ncm[self.npix:,self.npix:]
+        lambdaI = np.eye(2*self.npix) * 4e-16
+        ncmqu = ncmqu + lambdaI
+        if unit == 'uK':
+            ncmqu *= 1e12
+        del (ncm,lambdaI)
+        if self.diag:
+            return self.__offdiag_to_zeros__(ncmqu)
+        else:
+            return ncmqu
+    def noisemap_generic(self,freq,idx=None,order='ring',unit='uK'):
+        ncm = self.get_ncm_generic(freq,unit=unit)
+        fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
+        if os.path.exists(fname):
+            cho = pkl.load(open(fname,'rb'))
+        else:
+            cho = np.linalg.cholesky(ncm)
+            pkl.dump(cho,open(fname,'wb'))
+        seed = 152 + (0 if idx is None else idx)
+        np.random.seed(seed)
+        noisemap = cho2map(cho)
+        pix = cho.shape[0]
+        QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
+                        noisemap[pix//2:]*self.polmask('nested')])
+        if order=='ring':
+            QU[0] = hp.reorder(QU[0],n2r=True)
+            QU[1] = hp.reorder(QU[1],n2r=True)
+        
+        # if unit=='uK':
+        #     QU *=1e6
+        return QU
+    
+    def get_full_ncm_generic(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
+        ncm_pol = self.get_ncm_generic(freq,unit=unit)
+        if order=='ring':
+            pass
+        elif order=='nested':
+            re_idx = hp.nest2ring(self.nside,np.arange(hp.nside2npix(self.nside)))
+            re_idx_full = np.concatenate([re_idx,re_idx+hp.nside2npix(self.nside)])
+            ncm_pol = ncm_pol[:,re_idx_full][re_idx_full,:]
+        else:
+            raise ValueError('order must be ring or nested')
+            
+        del ncm
+        if pad_temp:
+            NCM = np.zeros((3*self.npix,3*self.npix))
+            NCM[self.npix:,self.npix:] = ncm_pol
+        else:
+            NCM = ncm_pol
+        
+        if reshape:
+            return NCM.reshape(-1)
+        else:
+            return NCM
+
+
+    def get_ncm(self,*args,**kwargs):
+        if self.method == 'roger':
+            return self.get_ncm_roger(*args,**kwargs)
+        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
+            return self.get_ncm_generic(*args,**kwargs)
+    
+    def get_full_ncm(self,*args,**kwargs):
+        if self.method == 'roger':
+            return self.get_full_ncm_roger(*args,**kwargs)
+        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
+            return self.get_full_ncm_generic(*args,**kwargs)
+        
+    def noisemap(self,*args,**kwargs):
+        if self.method == 'roger':
+            return self.noisemap_roger(*args,**kwargs)
+        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
+            return self.noisemap_generic(*args,**kwargs)
+        
+
+    def Emode(self,freq,idx,unit='uK'):
+        Q,U = self.noisemap(freq,idx,order='ring',unit=unit)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
 

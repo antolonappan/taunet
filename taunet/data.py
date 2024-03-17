@@ -2,15 +2,16 @@ import os
 import hashlib
 import requests
 from tqdm import tqdm
+import taunet.config as cfg
 
-__path__ = os.path.dirname(os.path.realpath(__file__))
-DATADIR = os.path.join(__path__,'..','Data')
+
+DATADIR = cfg.DATADIR
 os.makedirs(DATADIR, exist_ok=True)
 
 
 __LINK__ = 'https://figshare.com/ndownloader/files/'
 
-__FILES__ =  {'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat':[43491375,'f16b81e701fc781c57398b28fa2f39ad'],
+__FILES__ =  {#'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat':[43491375,'f16b81e701fc781c57398b28fa2f39ad'],
               'noise_SROLL20_100psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat':[43491423,'1a994dbce1e986ca2986ebccf40af873'],
               'noise_SROLL20_143psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat':[43491426,'b344cd02dcc83d8cd89bccc65c3c2229'],
               'noise_SROLL20_353psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat':[43491432,'d2ee127baa8b041c54e0e557aaa0ef0e'],
@@ -18,7 +19,7 @@ __FILES__ =  {'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat':[43
               'wmap_K_coswin_ns16_9yr_v5_covmat.bin':[43491483,'7f271b328e5edfc63f1dc2d822200bd7'],
               'beam_coswin_ns16.fits':[43491582,'c5543348abad26a88c1a9a574212934e'],
               'mask_pol_nside16.dat':[43491585,'28db044800168128d355c8275675c72d'],
-              'beam_coswin_ns16.fits':[43715016,'c5543348abad26a88c1a9a574212934e'],
+              'beam_440T_coswinP_pixwin16.fits': [45095293,'91f417a2dc2b16aa3a6f88634a27dce8'],
             }
 
 def md5(fname):

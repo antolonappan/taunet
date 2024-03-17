@@ -230,6 +230,7 @@ class SkySimulation:
         fg_const: bool = True,
         noise_g: bool = False,
         noise_diag: bool = False,
+        noise_method: str = "roger",
         fullsky: bool = False,
     ):
 
@@ -242,7 +243,7 @@ class SkySimulation:
 
         self.CMB = CMBmap(libdir, tau, nsim)
         self.FG = FGMap(libdir, fg)
-        self.noise = NoiseModel(noise_diag)
+        self.noise = NoiseModel(diag=noise_diag,method=noise_method)
         self.nsim = nsim
         self.ssim = ssim
         self.nside = self.CMB.NSIDE
@@ -266,7 +267,7 @@ class SkySimulation:
         hp.almxfl(alms[2], beam, inplace=True)
         return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
 
-    def QU(self, band, idx=None, unit="uK", order="ring", beam=True, deconvolve=False):
+    def QU(self, band, idx=None, unit="uK", order="ring", beam=True,):
         idx=idx + self.ssim
         cmb = self.CMB.QU(idx=idx, beam=True)
         if self.fg_const:
@@ -286,7 +287,7 @@ class SkySimulation:
             fg = self.FG.QU(band, beam=True)
 
         if not self.noise_g:
-            noise = self.noise.noisemap(band,idx=idx,order="ring",unit="uK",deconvolve=deconvolve)
+            noise = self.noise.noisemap(band,idx=idx,order="ring",unit="uK")
         else:
             noise = NoiseModelDiag(self.nside).noisemap()
 
@@ -311,8 +312,8 @@ class SkySimulation:
             raise ValueError("order must be ring or nested")
         return QU
 
-    def Emode(self, band, idx=None, beam=True, deconvolve=False):
-        QU = self.QU(band, idx=idx, beam=beam, deconvolve=deconvolve)
+    def Emode(self, band, idx=None, beam=True,):
+        QU = self.QU(band, idx=idx, beam=beam,)
         return hp.map2alm_spin(QU, 2, lmax=self.CMB.lmax)[0]
 
 
@@ -333,6 +334,8 @@ class MakeSims:
         Use Gaussian noise
     noise_diag : bool, optional (default=False)
         Use diagonal noise
+    noise_method : str, optional (default="roger")
+        Noise method to use
     tau : float, optional (default=0.06)
         Optical depth
     nsim : int, optional (default=100)
@@ -350,6 +353,7 @@ class MakeSims:
         nside=16,
         noise_g=False,
         noise_diag=False,
+        noise_method="roger",
         tau=0.06,
         nsim=100,
         ssim=0,
@@ -359,11 +363,11 @@ class MakeSims:
         os.makedirs(out_dir, exist_ok=True)
         if fullsky:
             simdir = os.path.join(
-                out_dir, "SIMULATIONS_" + "".join(fg) + f"N_{int(noise_g)}_fullsky"
+                out_dir, "SIMULATIONS_" + "".join(fg) + f"N_{int(noise_g)}_fullsky{'' if noise_method=='roger' else noise_method}"
             )
         else:
             simdir = os.path.join(
-                out_dir, "SIMULATIONS_" + "".join(fg) + f"N_{int(noise_g)}"
+                out_dir, "SIMULATIONS_" + "".join(fg) + f"N_{int(noise_g)}{'' if noise_method=='roger' else noise_method}"
             )
         if noise_diag:
             simdir += "_diag"
@@ -390,6 +394,7 @@ class MakeSims:
         self.nsim = nsim
         self.ssim = ssim
         self.tau = tau
+        self.noise_method = noise_method
 
         sky = SkySimulation(
             out_dir,
@@ -397,6 +402,7 @@ class MakeSims:
             fg=fg,
             noise_g=noise_g,
             noise_diag=noise_diag,
+            noise_method=noise_method,
             nsim=nsim,
             fullsky=fullsky,
         )
@@ -417,11 +423,11 @@ class MakeSims:
 
         if fullsky:
             clean_dir = os.path.join(
-                out_dir, "CLEAN_" + "".join(fg) + f"N_{int(noise_g)}_fullsky"
+                out_dir, "CLEAN_" + "".join(fg) + f"N_{int(noise_g)}_fullsky{'' if noise_method=='roger' else noise_method}"
             )
         else:
             clean_dir = os.path.join(
-                out_dir, "CLEAN_" + "".join(fg) + f"N_{int(noise_g)}"
+                out_dir, "CLEAN_" + "".join(fg) + f"N_{int(noise_g)}{'' if noise_method=='roger' else noise_method}"
             )
 
         if noise_diag:
@@ -444,7 +450,11 @@ class MakeSims:
                 cov.tofile(fname)
                 print("Saved {}".format(fname))
         else:
-            ncm_dir = os.path.join(out_dir, "NCMD" if noise_diag else "NCM")
+            if noise_diag:
+                _ncm_dir_ = f"NCMD{'' if noise_method=='roger' else noise_method}" 
+            else:
+                _ncm_dir_ = f"NCM{'' if noise_method=='roger' else noise_method}"
+            ncm_dir = os.path.join(out_dir, _ncm_dir_)
             self.ncm_dir = ncm_dir
             os.makedirs(ncm_dir, exist_ok=True)
             print(f"Generating noise covariance matrices: NoiseModel{' Diag' if noise_diag else ''}")
@@ -484,11 +494,11 @@ class MakeSims:
         if self.fullsky:
             fname = os.path.join(
                 dire,
-                f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}.ini",
+                f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.ini",
             )
         else:
             fname = os.path.join(
-                dire, f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}.ini"
+                dire, f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.ini"
             )
 
         if self.noise_g or self.fullsky:
@@ -575,21 +585,21 @@ suffix_map = .fits
         if ret:
             if self.fullsky:
                 return (
-                    f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}.ini"
+                    f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.ini"
                 )
             else:
-                return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}.ini"
+                return f"params_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.ini"
 
     def job_file(self, band, dire="./", ret=False):
         assert band in [100, 143], "Band must be 143 or 100"
         pname = self.make_params(band, dire=dire, ret=True)
         if self.fullsky:
             fname = os.path.join(
-                dire, f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}.sh"
+                dire, f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}_fullsky{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.sh"
             )
         else:
             fname = os.path.join(
-                dire, f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}.sh"
+                dire, f"slurm_{''.join(self.fg)}_N{int(self.noise_g)}_{band}{'' if not self.noise_diag else '_Diag'}{'' if self.noise_method=='roger' else self.noise_method}.sh"
             )
 
         if self.fullsky:
