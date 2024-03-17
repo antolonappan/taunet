@@ -8,9 +8,8 @@ from numba import njit,f8
 from warnings import warn
 
 
-def cho2map(cho,idx=None):
+def cho2map(cho):
     pix = cho.shape[0]
-    np.random.seed(152+idx if idx else 0)
     noisem = np.random.normal(0,1,pix)
     noisemap = np.dot(cho, noisem)
     return noisemap
@@ -48,12 +47,8 @@ class NoiseModel:
         #NCM
         self.ncms = {
             23 : os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin'),
-            30 : os.path.join(self.__cfd__,'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
-            40 : os.path.join(self.__cfd__,'noise_FFP10_44full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
-            70 : os.path.join(self.__cfd__,'noise_FFP10_70full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat'),
            100 : os.path.join(self.__cfd__,'noise_SROLL20_100psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
            143 : os.path.join(self.__cfd__,'noise_SROLL20_143psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
-           217 : os.path.join(self.__cfd__,'noise_SROLL20_217psb_full_EB_lmax4_pixwin_200sims_smoothmean_AC_suboffset_new.dat'),
            353 : os.path.join(self.__cfd__,'noise_SROLL20_353psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
         }
     
@@ -197,16 +192,26 @@ class NoiseModel:
             return NCM
     
     def __noisemap23__(self,idx=None,order='nested',unit='K'):
+        fname = os.path.join(self.__cholesky__,f'cholesky23_{order}_{unit}.pkl')
         if self.diag:
             ncm = self.__offdiag_to_zeros__(self.__get_ncm23__(unit='K'))
         else:
             ncm = self.__get_ncm23__(unit='K')
-        ncm_cho = np.linalg.cholesky(ncm)
-        pix = ncm_cho.shape[0]
+        if os.path.exists(fname):
+            cho = pkl.load(open(fname,'rb'))
+        else:
+            cho = np.linalg.cholesky(ncm)
+            pkl.dump(cho,open(fname,'wb'))
+        
         seed = 152 + (0 if idx is None else idx)
         np.random.seed(seed)
-        noisem = np.random.normal(0,1,pix)
-        noisemap = np.dot(ncm_cho, noisem)
+        noisemap = cho2map(cho)
+        pix = cho.shape[0]
+        del cho
+        #ncm_cho = np.linalg.cholesky(ncm)
+        #pix = ncm_cho.shape[0]
+        #noisem = np.random.normal(0,1,pix)
+        #noisemap = np.dot(ncm_cho, noisem)
         QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
                         noisemap[pix//2:]*self.polmask('nested')])
         if order=='ring':
@@ -217,28 +222,27 @@ class NoiseModel:
             QU *=1e6
         return QU
     
-    def noisemap(self,freq,idx=None,order='ring',unit='uK',deconvolve=False):
+    def noisemap(self,freq,idx=None,order='ring',unit='uK'):
+        fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if freq == 23:
             return self.__noisemap23__(idx=idx,order=order,unit=unit)
         
         ncm = self.get_ncm(freq,unit=unit)
-        ncm_cho = np.linalg.cholesky(ncm)
+        if os.path.exists(fname):
+            cho = pkl.load(open(fname,'rb'))
+        else:
+            cho = np.linalg.cholesky(ncm)
+            pkl.dump(cho,open(fname,'wb'))
+        seed = 152 + (0 if idx is None else idx)
+        np.random.seed(seed)
+        noisemap = cho2map(cho)
+        #noisem = np.random.normal(0,1,pix)
+        #noisemap = np.dot(ncm_cho, noisem)
+
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
-        pix = ncm_cho.shape[0]
-        seed = 152 + (0 if idx is None else idx)
-        np.random.seed(seed)
-        noisem = np.random.normal(0,1,pix)
-        noisemap = np.dot(ncm_cho, noisem)
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
-
-        
-        if deconvolve:
-            alm = hp.map2alm([QU[0]*0,QU[0],QU[1]],lmax=3*self.nside-1)
-            hp.almxfl(alm[1],cli(cosbeam),inplace=True)
-            hp.almxfl(alm[2],cli(cosbeam),inplace=True)
-            QU = hp.alm2map(alm,self.nside,verbose=False)[1:]
         
         QU = QU * self.polmask('ring')
 
@@ -250,8 +254,8 @@ class NoiseModel:
             raise ValueError('order must be ring or nested')
         return QU
     
-    def Emode(self,freq,unit='uK',deconvolve=False):
-        Q,U = self.noisemap(freq,order='ring',unit=unit,deconvolve=deconvolve)
+    def Emode(self,freq,idx,unit='uK',deconvolve=False):
+        Q,U = self.noisemap(freq,idx,order='ring',unit=unit,deconvolve=deconvolve)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
         
 

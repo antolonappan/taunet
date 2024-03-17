@@ -23,6 +23,26 @@ def cli(cl):
 
 
 class CMBspectra:
+    """
+    Theoretical CMB power spectra
+
+    Parameters:
+    -----------
+
+    H0 : float, optional (default=67.32)
+        Hubble constant
+    ombh2 : float, optional (default=0.02237)
+        Physical baryon density
+    omch2 : float, optional (default=0.1201)
+        Physical cold dark matter density
+    ns : float, optional (default=0.9651)
+        Scalar spectral index
+    mnu : float, optional (default=0.06)
+        Sum of neutrino masses
+    tau : float, optional (default=0.06)
+        Optical depth
+    
+    """
 
     def __init__(
         self, H0=67.32, ombh2=0.02237, omch2=0.1201, ns=0.9651, mnu=0.06, tau=0.06
@@ -65,6 +85,17 @@ class CMBspectra:
 
 
 class CMBmap:
+    """
+    Simulations class to generate CMB maps
+
+    Parameters
+    ----------
+
+    libdir : str
+        Library directory to save the maps
+    tau : float
+        Optical depth
+    """
 
     def __init__(self, libdir, tau, nsim=None):
         self.libdir = os.path.join(libdir, "CMB")
@@ -113,6 +144,16 @@ class CMBmap:
 
 
 class FGMap:
+    """
+    SkySimulation class to generate foreground maps
+
+    Parameters
+    ----------
+    libdir : str
+        Library directory to save the maps
+    model : list, optional (default=["d1","s1"])
+        Foreground model to use
+    """
 
     def __init__(self, libdir, model=["d1", "s1"]):
         self.libdir = os.path.join(libdir, "FG", "".join(model))
@@ -148,6 +189,34 @@ class FGMap:
 
 
 class SkySimulation:
+    """
+    SkySimulation class to generate CMB and foreground maps
+
+    Parameters
+    ----------
+    libdir : str
+        Library directory to save the maps
+    tau : float
+        Optical depth
+    add_noise : bool, optional (default=True)
+        Add noise to the maps
+    add_fg : bool, optional (default=True)
+        Add foregrounds to the maps
+    fg : list, optional (default=["s0","d0"])
+        Foreground model to use
+    nsim : int, optional (default=None)
+        Number of simulations
+    ssim : int, optional (default=0)
+        Starting index for the simulations
+    fg_const : bool, optional (default=True)
+        Use constant foregrounds
+    noise_g : bool, optional (default=False)
+        Use Gaussian noise
+    noise_diag : bool, optional (default=False)
+        Use diagonal noise
+    fullsky : bool, optional (default=False)
+        Use full-sky maps
+    """
 
     def __init__(
         self,
@@ -248,6 +317,32 @@ class SkySimulation:
 
 
 class MakeSims:
+    """
+    Make simulations class to generate CMB and foreground maps
+
+
+    Parameters
+    ----------
+    out_dir : str
+        Output directory to save the maps
+    fg : list, optional (default=["s0","d0"])
+        Foreground model to use
+    nside : int, optional (default=16)
+        Healpix resolution
+    noise_g : bool, optional (default=False)
+        Use Gaussian noise
+    noise_diag : bool, optional (default=False)
+        Use diagonal noise
+    tau : float, optional (default=0.06)
+        Optical depth
+    nsim : int, optional (default=100)
+        Number of simulations
+    ssim : int, optional (default=0)
+        Starting index for the simulations
+    fullsky : bool, optional (default=False)
+        Use full-sky maps
+    
+    """
     def __init__(
         self,
         out_dir,
