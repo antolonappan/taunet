@@ -9,7 +9,7 @@ from taunet.ncm import NoiseModel, NoiseModelDiag
 from taunet import DATADIR
 import os
 import pickle as pl
-import subprocess
+import taunet.database as db
 
 try:
     cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_440T_coswinP_pixwin16.fits'))[1]
@@ -53,26 +53,21 @@ class CMBspectra:
         pars.InitPower.set_params(ns=ns, r=0)
         pars.set_for_lmax(284, lens_potential_accuracy=0)
         self.results = camb.get_results(pars)
-        self.powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
+        self.db = db.SpectrumDB()
+        self.powers = self.powers()
         self.EE = self.powers[:, 1]
         self.ell = np.arange(len(self.EE))
 
-    def tofile(self, libdir, retfile=False):
-        fname = os.path.join(
-            libdir, f"lensed_scalar_cls_{str(self.tau).replace('.','p')}.dat"
-        )
-        powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=False)
-        powers = powers[2:, :]
-        lmax = len(powers)
-        l = np.arange(2, lmax + 2)
-        powers = np.column_stack((l.reshape(-1), powers))
-        np.savetxt(fname, powers)
-        if retfile:
-            return fname
+    
+    def powers(self):
+        if self.db.check_tau_exist(self.tau):
+            return self.db.get_spectra(self.tau)
+        else:
+            powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
+            self.db.insert_spectra(self.tau, powers)
+            del powers
+            return self.db.get_spectra(self.tau)
 
-    def plot(self):
-        plt.loglog(self.EE)
-        plt.show()
 
     def save_power(self, libdir, retfile=False):
         fname = os.path.join(
@@ -107,16 +102,12 @@ class CMBmap:
         print("tau = {}".format(tau))
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
+        #db = db.CMBmapDB('random')
 
     @property
     def EE(self):
-        fname = os.path.join(self.specdir, f"spectra_tau_{self.tau}.pkl")
-        if os.path.isfile(fname):
-            return pl.load(open(fname, "rb"))
-        else:
-            ee = CMBspectra(tau=self.tau).EE
-            pl.dump(ee, open(fname, "wb"))
-            return ee
+        return CMBspectra(tau=self.tau).EE
+        
 
     def alm(self, idx=None):
         if idx is None:
@@ -127,10 +118,9 @@ class CMBmap:
         Elm = hp.synalm(self.EE, lmax=100, new=True)
         return Elm
 
-    def QU(self, idx=None, beam=False):
+    def QU(self, idx=None,):
         alm = self.alm(idx=idx)
-        if beam:
-            hp.almxfl(alm, cosbeam, inplace=True)
+        hp.almxfl(alm, cosbeam, inplace=True)
         dummy = np.zeros_like(alm)
         TQU = hp.alm2map([dummy, alm, dummy], self.NSIDE)
         QU = TQU[1:].copy()
@@ -141,7 +131,6 @@ class CMBmap:
     def Emode(self, idx=None, beam=False):
         QU = self.QU(idx=idx, beam=beam)
         return hp.map2alm_spin(QU, 2, lmax=self.lmax)[0]
-
 
 class FGMap:
     """
@@ -186,7 +175,6 @@ class FGMap:
         if mask is not None:
             QU = QU * mask
         return hp.map2alm_spin(QU, 2, lmax=self.lmax)[0]
-
 
 class SkySimulation:
     """
@@ -269,7 +257,7 @@ class SkySimulation:
 
     def QU(self, band, idx=None, unit="uK", order="ring", beam=True,):
         idx=idx + self.ssim
-        cmb = self.CMB.QU(idx=idx, beam=True)
+        cmb = self.CMB.QU(idx=idx,)
         if self.fg_const:
             if band == 23:
                 fg = self.qu_fg_23
@@ -315,7 +303,6 @@ class SkySimulation:
     def Emode(self, band, idx=None, beam=True,):
         QU = self.QU(band, idx=idx, beam=beam,)
         return hp.map2alm_spin(QU, 2, lmax=self.CMB.lmax)[0]
-
 
 class MakeSims:
     """
@@ -700,3 +687,6 @@ srun grid_compsep_mpi.x {pname}
                 label="Cleaned",
             )
         plt.legend()
+
+
+

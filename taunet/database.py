@@ -1,186 +1,133 @@
-import sqlite3
-import json
-import numpy as np
-
-class CMBObject:
-    __slots__ = ['tau', 'map']
-    def __init__(self, tau, maps):
-        self.tau = tau
-        self.map = maps
-
-
-class NoiseObject:
-    __slots__ = ['frequency', 'map']
-    def __init__(self, frequency, maps):
-        self.frequency = frequency
-        self.map = maps
-
-class CleanedCMBObject:
-    __slots__ = ['tau', 'frequency', 'map']
-    def __init__(self, tau, frequency, maps):
-        self.tau = tau
-        self.frequency = frequency
-        self.map = maps
-
-class FGObject:
-    __slots__ = ['model', 'frequency', 'map']
-    def __init__(self, model, frequency, maps):
-        self.model = model
-        self.frequency = frequency
-        self.map  = maps
+import pymysql
+import os
+import pickle
 
 
 class TauNetDB:
-    def __init__(self, db_file='taunet.db'):
-        self.conn = sqlite3.connect(db_file)
-        self._create_tables()
-
-    def _create_tables(self):
-        cursor = self.conn.cursor()
-        cursor.execute('''CREATE TABLE IF NOT EXISTS CMB (
-                            cmb_index INTEGER PRIMARY KEY,
-                            tau REAL,
-                            map TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Noise (
-                            noise_index INTEGER,
-                            frequency INTEGER,
-                            map TEXT,
-                            PRIMARY KEY (noise_index, frequency))''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS CleanedCMB (
-                            cmb_index INTEGER PRIMARY KEY,
-                            tau REAL,
-                            frequency INTEGER,
-                            map TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS FG (
-                            model TEXT,
-                            frequency INTEGER,
-                            map TEXT,
-                            PRIMARY KEY (model, frequency))''')
-        self.conn.commit()
-
-        self.conn.commit()
-
-    def _serialize_map(self, map):
-        if isinstance(map, np.ndarray):
-            map = map.tolist()
-        return json.dumps(map)
-
-    def insert_cmb(self, cmb_index, tau, map):
+    def __init__(self):
+        host = 'antolonappan.me'
+        user = os.getenv('TAUNET_ROOT_USERNAME')
+        password = os.getenv('TAUNET_ROOT_PASSWORD')
+        db = 'taunetdb'
         try:
-            cursor = self.conn.cursor()
-            map_json = self._serialize_map(map)
-            cursor.execute('INSERT INTO CMB (cmb_index, tau, map) VALUES (?, ?, ?)', (cmb_index, tau, map_json))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            print(f"CMB record with index {cmb_index} already exists.")
+            self.connection = pymysql.connect(host=host, user=user, passwd=password, db=db)
+        except Exception as e:
+            print(f"Error connecting to the database: {e}")
+            raise FileNotFoundError("Database connection failed")
+        self.table = None
+        self._create_table_()
 
-    def edit_cmb(self, cmb_index, tau, map):
-        cursor = self.conn.cursor()
-        map_json = self._serialize_map(map)
-        cursor.execute('UPDATE CMB SET tau = ?, map = ? WHERE cmb_index = ?', (tau, map_json, cmb_index))
-        self.conn.commit()
-
-    def insert_noise(self, noise_index, frequency, map):
-        try:
-            cursor = self.conn.cursor()
-            map_json = self._serialize_map(map)
-            cursor.execute('INSERT INTO Noise (noise_index, frequency, map) VALUES (?, ?, ?)', (noise_index, frequency, map_json))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            print(f"Noise record with index {noise_index} and frequency {frequency} already exists.")
-
-    def edit_noise(self, noise_index, frequency, map):
-        cursor = self.conn.cursor()
-        map_json = self._serialize_map(map)
-        cursor.execute('UPDATE Noise SET map = ? WHERE noise_index = ? AND frequency = ?', (map_json, noise_index, frequency))
-        if cursor.rowcount == 0:
-            print(f"No existing noise record found for index {noise_index} and frequency {frequency}.")
-        else:
-            self.conn.commit()  
-
-    def _deserialize_map(self, map_json):
-        map_list = json.loads(map_json)
-        return np.array(map_list)
-
-    def get_cmb(self, cmb_index):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT tau, map FROM CMB WHERE cmb_index = ?', (cmb_index,))
-        row = cursor.fetchone()
-        if row:
-            map_array = self._deserialize_map(row[1])
-            return CMBObject(row[0], map_array)
-        else:
-            return None
-
-    def get_noise(self, noise_index, frequency):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT map FROM Noise WHERE noise_index = ? AND frequency = ?', (noise_index, frequency))
-        row = cursor.fetchone()
-        if row:
-            map_array = self._deserialize_map(row[0])
-            return NoiseObject( frequency, map_array)
-        else:
-            return None
-        
-    def insert_cleaned_cmb(self, cmb_index, tau, frequency, map):
-        try:
-            cursor = self.conn.cursor()
-            map_json = self._serialize_map(map)
-            cursor.execute('INSERT INTO CleanedCMB (cmb_index, tau, frequency, map) VALUES (?, ?, ?, ?)', 
-                           (cmb_index, tau, frequency, map_json))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            print(f"Cleaned CMB record with index {cmb_index} already exists.")
-
-    def edit_cleaned_cmb(self, cmb_index, tau, frequency, map):
-        cursor = self.conn.cursor()
-        map_json = self._serialize_map(map)
-        cursor.execute('UPDATE CleanedCMB SET tau = ?, frequency = ?, map = ? WHERE cmb_index = ?', 
-                       (tau, frequency, map_json, cmb_index))
-        self.conn.commit()
-
-    def get_cleaned_cmb(self, cmb_index):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT tau, frequency, map FROM CleanedCMB WHERE cmb_index = ?', (cmb_index,))
-        row = cursor.fetchone()
-        if row:
-            map_array = self._deserialize_map(row[2])
-            return CleanedCMBObject(row[0], row[1], map_array)
-        else:
-            return None
+    def _create_table_(self):
+        pass
     
-    def insert_fg(self, model, frequency, map):
+    def reset_table(self):
+        reset_table_sql = f'TRUNCATE TABLE {self.table}'
+        self.execute_query(reset_table_sql)
+
+    def remove_table(self):
+        remove_sql = f'DROP TABLE {self.table}'
+        self.execute_query(remove_sql)
+
+    def execute_query(self, query, data=None):
         try:
-            cursor = self.conn.cursor()
-            map_json = self._serialize_map(map)
-            cursor.execute('INSERT INTO FG (model, frequency, map) VALUES (?, ?, ?)',
-                           (model, frequency, map_json))
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            print(f"FG record with model {model} and frequency {frequency} already exists.")
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, data)
+                self.connection.commit()
+        except Exception as e:
+            print(f"Error executing query: {e}")
 
-    def edit_fg(self, model, frequency, map):
-        cursor = self.conn.cursor()
-        map_json = self._serialize_map(map)
-        cursor.execute('UPDATE FG SET map = ? WHERE model = ? AND frequency = ?',
-                       (map_json, model, frequency))
-        self.conn.commit()
-
-    def get_fg(self, model, frequency):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT map FROM FG WHERE model = ? AND frequency = ?', (model, frequency))
-        row = cursor.fetchone()
-        if row:
-            map_array = self._deserialize_map(row[0])
-            return FGObject(model, frequency, map_array)
-        else:
+    def get_data(self, query, data=None):
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query,data)
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching data: {e}")
             return None
-        
-    def total_map(self,index,frequency,add_noise=True,add_fg=['s0','d0']):
-        maps = self.get_cmb(index).map
-        if add_noise:
-            maps += self.get_noise(index, frequency).map
-        if add_fg:
-            for fg in add_fg:
-                maps += self.get_fg(fg, frequency).map
-        return maps
+
+class SpectrumDB(TauNetDB):
+    def __init__(self):
+        super().__init__()
+        self.table = 'spectra'
+
+    def _create_table_(self):
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS spectra (
+                id integer PRIMARY KEY AUTO_INCREMENT,
+                tau VARCHAR(255) NOT NULL,
+                powers BLOB NOT NULL
+            );
+        '''
+        self.execute_query(create_table_sql)
+
+    def insert_spectra(self, tau, spectra):
+        tau_str = str(tau)
+        if self.check_tau_exist(tau_str):
+            print(f"Spectra with tau {tau_str} already exists.")
+            return
+
+        serialized_spectra = pickle.dumps(spectra)
+        insert_sql = 'INSERT INTO spectra (tau, powers) VALUES (%s, %s);'
+        self.execute_query(insert_sql, (tau_str, serialized_spectra))
+
+    def get_spectra(self, tau):
+        tau_str = str(tau)
+        query = 'SELECT powers FROM spectra WHERE tau = %s;'
+        result = self.get_data(query, (tau_str,))
+        if result:
+            return pickle.loads(result[0][0])
+        else:
+            print(f"No spectra found for tau {tau_str}.")
+            return None
+
+    def check_tau_exist(self, tau):
+        tau_str = str(tau)
+        check_query = 'SELECT COUNT(*) FROM spectra WHERE tau = %s;'
+        result = self.get_data(check_query, (tau_str,))
+        return result and result[0][0] > 0
+    
+    def get_all_taus(self):
+        query = 'SELECT tau FROM spectra;'
+        result = self.get_data(query)
+        return [float(row[0]) for row in result]
+
+class CMBmapDB(TauNetDB):
+    def __init__(self, pre_table):
+        super().__init__()
+        self.table = f'{pre_table}_cmb'
+        self.create_table()
+
+    def create_table(self):
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {self.table} (
+                id integer PRIMARY KEY NOT NULL,
+                tau VARCHAR(255) NOT NULL,
+                cmb_map BLOB NOT NULL
+            );
+        '''
+        self.execute_query(create_table_sql)
+
+    def insert_map(self, seed, tau, maps):
+        if self.check_seed_exist(seed):
+            print(f"Map with seed {seed} already exists.")
+            return
+
+        str_tau = str(tau)
+        pickled_maps = pickle.dumps(maps)
+        insert_sql = f'INSERT INTO {self.table} (id, tau, cmb_map) VALUES (%s, %s, %s);'
+        self.execute_query(insert_sql, (seed, str_tau, pickled_maps))
+    
+    def get_map(self, seed):
+        get_sql = f'SELECT tau, cmb_map FROM {self.table} WHERE id = %s;'
+        data = self.get_data(get_sql, (seed,))
+        if len(data) == 0:
+            print(f"No map found for seed {seed}.")
+            return None
+        tau = data[0][0]
+        maps = pickle.loads(data[0][1])
+        return tau, maps
+    
+    def check_seed_exist(self, seed):
+        check_sql = f'SELECT COUNT(*) FROM {self.table} WHERE id = %s;'
+        data = self.get_data(check_sql, (seed,))
+        return data and data[0][0] > 0
