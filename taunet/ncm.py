@@ -225,7 +225,7 @@ class NoiseModel:
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
         
-        seed = 152 + (0 if idx is None else idx)
+        seed = 152 + (0 if idx is None else idx) + 23
         np.random.seed(seed)
         noisemap = cho2map(cho)
         pix = cho.shape[0]
@@ -257,7 +257,7 @@ class NoiseModel:
         else:
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
-        seed = 152 + (0 if idx is None else idx)
+        seed = 152 + (0 if idx is None else idx) + freq
         np.random.seed(seed)
         noisemap = cho2map(cho)
         #noisem = np.random.normal(0,1,pix)
@@ -299,7 +299,7 @@ class NoiseModel:
         else:
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
-        seed = 152 + (0 if idx is None else idx)
+        seed = 152 + (0 if idx is None else idx) + freq
         np.random.seed(seed)
         noisemap = cho2map(cho)
         pix = cho.shape[0]
@@ -385,7 +385,7 @@ class NoiseModelDiag:
         sigma_pix = 0.01
         return np.array([np.random.normal(0,sigma_pix,self.npix),np.random.normal(0,sigma_pix,self.npix)])
     
-    def Emode(self,unit='uK'):
+    def Emode(self,idx=None,unit='uK'):
         Q,U = self.noisemaps(unit)
         return hp.map2alm_spin([Q,U],2,lmax=3*self.nside-1)[0]
 
