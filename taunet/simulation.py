@@ -198,8 +198,6 @@ class SkySimulation:
 
     Parameters
     ----------
-    libdir : str
-        Library directory to save the maps
     tau : float
         Optical depth
     add_noise : bool, optional (default=True)
@@ -208,50 +206,36 @@ class SkySimulation:
         Add foregrounds to the maps
     fg : list, optional (default=["s0","d0"])
         Foreground model to use
-    nsim : int, optional (default=None)
-        Number of simulations
     ssim : int, optional (default=0)
         Starting index for the simulations
-    fg_const : bool, optional (default=True)
-        Use constant foregrounds
     noise_g : bool, optional (default=False)
         Use Gaussian noise
     noise_diag : bool, optional (default=False)
         Use diagonal noise
+    noise_method : str, optional (default="sroll")
+        Noise method to use
     fullsky : bool, optional (default=False)
         Use full-sky maps
     """
 
     def __init__(
         self,
-        libdir: str,
         tau: float,
         add_noise: bool = True,
         add_fg: bool = True,
-        fg: list = ["s0", "d0"],
-        nsim=None,
+        fg: list = ["s1", "d1"],
         ssim: int = 0,
-        fg_const: bool = True,
         noise_g: bool = False,
         noise_diag: bool = False,
-        noise_method: str = "roger",
+        noise_method: str = "sroll",
         fullsky: bool = False,
     ):
 
-        if fg_const:
-            self.qu_fg_23 = FGMap(libdir, fg).QU(23) if add_fg else None
-            self.qu_fg_30 = FGMap(libdir, fg).QU(30) if add_fg else None
-            self.qu_fg_100 = FGMap(libdir, fg).QU(100) if add_fg else None
-            self.qu_fg_143 = FGMap(libdir, fg).QU(143) if add_fg else None
-            self.qu_fg_353 = FGMap(libdir, fg).QU(353) if add_fg else None
-
-        self.CMB = CMBmap(libdir, tau, nsim)
-        self.FG = FGMap(libdir, fg)
+        self.CMB = CMBmap(tau)
+        self.FG = FGMap(fg)
         self.noise = NoiseModel(diag=noise_diag,method=noise_method)
-        self.nsim = nsim
         self.ssim = ssim
         self.nside = self.CMB.NSIDE
-        self.fg_const = fg_const
         self.add_fg = add_fg
         self.add_noise = add_noise
         self.noise_g = noise_g
@@ -260,47 +244,21 @@ class SkySimulation:
             self.mask = np.ones(hp.nside2npix(self.nside))
         else:
             self.mask = self.noise.polmask("ring")
-
         self.fullsky = fullsky
-
-    def apply_beam(self, QU):
-        beam = self.get_beam()
-        TQU = [np.zeros_like(QU[0]), QU[0], QU[1]]
-        alms = hp.map2alm(TQU, lmax=self.CMB.lmax)
-        hp.almxfl(alms[1], beam, inplace=True)
-        hp.almxfl(alms[2], beam, inplace=True)
-        return hp.alm2map(alms, self.CMB.NSIDE, verbose=False)[1:]
-
-    def QU(self, band, idx=None, unit="uK", order="ring", beam=True,):
+    
+    def QU(self, band, idx=None, unit="uK", order="ring",):
         idx=idx + self.ssim
-        cmb = self.CMB.QU(idx=idx,)
-        if self.fg_const:
-            if band == 23:
-                fg = self.qu_fg_23
-            elif band == 30:
-                fg = self.qu_fg_30
-            elif band == 100:
-                fg = self.qu_fg_100
-            elif band == 143:
-                fg = self.qu_fg_143
-            elif band == 353:
-                fg = self.qu_fg_353
-            else:
-                raise ValueError("Band should be 100 or 143")
-        else:
-            fg = self.FG.QU(band, beam=True)
-
+        QU = self.CMB.QU(idx=idx,)
         if not self.noise_g:
             noise = self.noise.noisemap(band,idx=idx,order="ring",unit="uK")
         else:
             noise = NoiseModelDiag(self.nside).noisemap()
-
-        QU = cmb
         if self.add_fg:
+            fg = self.FG(band).QU(band)
             QU += fg
         if self.add_noise:
             QU += noise
-        # QU = self.apply_beam(QU)*self.noise.polmask('ring')
+        
         if unit == "uK":
             pass
         elif unit == "K":
@@ -316,8 +274,8 @@ class SkySimulation:
             raise ValueError("order must be ring or nested")
         return QU
 
-    def Emode(self, band, idx=None, beam=True,):
-        QU = self.QU(band, idx=idx, beam=beam,)
+    def Emode(self, band, idx=None,):
+        QU = self.QU(band, idx=idx)
         return hp.map2alm_spin(QU, 2, lmax=self.CMB.lmax)[0]
 
 class MakeSims:

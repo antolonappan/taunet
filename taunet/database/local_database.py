@@ -258,3 +258,47 @@ class ForegroundDB(TauNetDB):
         check_query = 'SELECT COUNT(*) FROM FGTable WHERE model = ? AND freq = ?'
         result = self.get_data(check_query, (model_str, freq_str))
         return result and result[0][0] > 0
+
+
+
+class NoiseDB(TauNetDB):
+    def __init__(self, prefix):
+        super().__init__()
+        self.table = f'{prefix}NoiseTable'
+        self._create_table_()
+
+    def _create_table_(self):
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {self.table} (
+                id INTEGER PRIMARY KEY,
+                frequency TEXT NOT NULL,
+                seed INTEGER NOT NULL,
+                map BLOB NOT NULL,
+                UNIQUE(frequency, seed)
+            );
+        '''
+        self.execute_query(create_table_sql)
+
+    def insert_noise_data(self, frequency, seed, map_data):
+        serialized_map = pickle.dumps(map_data)
+        insert_sql = f'INSERT INTO {self.table} (frequency, seed, map) VALUES (?, ?, ?)'
+        self.execute_query(insert_sql, (frequency, seed, serialized_map))
+
+    def get_noise_data(self, frequency, seed):
+        get_sql = f'SELECT map FROM {self.table} WHERE frequency = ? AND seed = ?'
+        result = self.get_data(get_sql, (frequency, seed))
+
+        if result:
+            return pickle.loads(result[0][0])
+        else:
+            raise ValueError("No noise data found for the given frequency and seed.")
+
+    def get_all_frequencies(self):
+        query = f'SELECT DISTINCT frequency FROM {self.table}'
+        result = self.get_data(query)
+        return [row[0] for row in result]
+
+    def check_noise_exist(self, frequency, seed):
+        check_query = f'SELECT COUNT(*) FROM {self.table} WHERE frequency = ? AND seed = ?'
+        result = self.get_data(check_query, (frequency, seed))
+        return result[0][0] > 0

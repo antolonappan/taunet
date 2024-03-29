@@ -258,14 +258,6 @@ class ForegroundDB(TauNetDB):
         return result[0][0] > 0
     
 
-class NoiseDB(TauNetDB):
-
-    def __init__(self,prefix):
-        super().__init__()
-        self.table = f'{prefix}NoiseTable'
-        self.prefix = prefix
-        self._create_table_()
-
 
 
 

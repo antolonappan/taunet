@@ -26,10 +26,9 @@ def cli(cl):
     return ret
 
 class NoiseModel:
-    #Roger et.al
 
-    def __init__(self,diag=False,method='roger'):
-        assert method in ['roger','ffp8','sroll2'], 'method must be one of roger, ffp8, sroll2'
+    def __init__(self,diag=False,method='sroll'):
+        assert method in ['sroll','ffp8'], 'method must be one of sroll, ffp8 '
         self.nside = 16
         self.npix = 12*self.nside**2
         self.dtype = np.float32
@@ -47,7 +46,7 @@ class NoiseModel:
 
 
         #NCM
-        ncms_roger = {
+        ncms_sroll = {
            100 : os.path.join(self.__cfd__,'noise_SROLL20_100psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
            143 : os.path.join(self.__cfd__,'noise_SROLL20_143psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
            353 : os.path.join(self.__cfd__,'noise_SROLL20_353psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
@@ -57,19 +56,12 @@ class NoiseModel:
             143 : os.path.join(FFP8,'dx11_ncm_143_combined_smoothed_nside0016.dat'),
             353 : os.path.join(FFP8,'dx11_ncm_353_combined_smoothed_nside0016.dat'),
         }
-        ncms_sroll2 = {
-            100: os.path.join(SROLL2,'map_sroll2_100psb_coswin_ns16_full.fits'),
-            143: os.path.join(SROLL2,'map_sroll2_143psb_coswin_ns16_full.fits'),
-            353: os.path.join(SROLL2,'map_sroll2_353psb_coswin_ns16_full.fits'),
-        }
 
 
-        if method == 'roger':
-            self.ncms = ncms_roger
+        if method == 'sroll':
+            self.ncms = ncms_sroll
         elif method == 'ffp8':
             self.ncms = ncms_ffp8
-        elif method == 'sroll2':
-            self.ncms = ncms_sroll2
  
         self.ncms[23] = os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin')
 
@@ -151,26 +143,26 @@ class NoiseModel:
     def __offdiag_to_zeros__(self,mat: np.ndarray) -> np.ndarray:
         return np.diag(np.diag(mat))
     
-    def __get_ncm23_roger__(self,unit='K'):
-        if unit!='K':
-            raise ValueError('unit must be K')
-        ncm = np.fromfile(self.ncms[23])
+    def get_ncm_generic(self,freq,unit='uK'):
+        ncm = np.fromfile(self.ncms[freq])
         ncm = ncm.reshape(3*self.npix,3*self.npix)
         ncmqu = ncm[self.npix:,self.npix:]
         lambdaI = np.eye(2*self.npix) * 4e-16
         ncmqu = ncmqu + lambdaI
+        if unit == 'uK':
+            ncmqu *= 1e12
         del (ncm,lambdaI)
-        return ncmqu
-    
-    def get_ncm_roger(self,freq,unit='uK'):
+        if self.diag:
+            return self.__offdiag_to_zeros__(ncmqu)
+        else:
+            return ncmqu
+        
+    def get_ncm_sroll(self,freq,unit='uK'):
         if freq not in self.ncms.keys():
             raise ValueError('Freq must be one of {}'.format(self.ncms.keys()))
         
         if freq==23:
-            if self.diag:
-                return self.__offdiag_to_zeros__(self.__get_ncm23_roger__(unit=unit))
-            else:
-                return self.__get_ncm23_roger__(unit=unit)
+            return self.get_ncm_generic(freq,unit=unit)
         
         ncm_dir = self.ncms[freq]
         fac = 1
@@ -184,9 +176,38 @@ class NoiseModel:
             return self.__offdiag_to_zeros__(self.inpcovmat(ncm_dir,double_prec=False))*fac
         else:
             return np.float64(self.inpcovmat(ncm_dir,double_prec=False)) *fac
+        
+    def get_ncm(self,*args,**kwargs):
+        if self.method == 'sroll':
+            return self.get_ncm_sroll(*args,**kwargs)
+        elif (self.method == 'ffp8'):
+            return self.get_ncm_generic(*args,**kwargs)
+        
+    def get_full_ncm_generic(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
+        ncm_pol = self.get_ncm_generic(freq,unit=unit)
+        if order=='ring':
+            pass
+        elif order=='nested':
+            re_idx = hp.nest2ring(self.nside,np.arange(hp.nside2npix(self.nside)))
+            re_idx_full = np.concatenate([re_idx,re_idx+hp.nside2npix(self.nside)])
+            ncm_pol = ncm_pol[:,re_idx_full][re_idx_full,:]
+        else:
+            raise ValueError('order must be ring or nested')
+            
+        del ncm
+        if pad_temp:
+            NCM = np.zeros((3*self.npix,3*self.npix))
+            NCM[self.npix:,self.npix:] = ncm_pol
+        else:
+            NCM = ncm_pol
+        
+        if reshape:
+            return NCM.reshape(-1)
+        else:
+            return NCM
     
-    def get_full_ncm_roger(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
-        ncm = self.get_ncm_roger(freq,unit=unit)
+    def get_full_ncm_sroll(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
+        ncm = self.get_ncm_sroll(freq,unit=unit)
         
         if (freq == 23) and self.diag:
             ncm_pol = ncm
@@ -212,44 +233,17 @@ class NoiseModel:
             return NCM.reshape(-1)
         else:
             return NCM
-    
-    def __noisemap23_roger__(self,idx=None,order='nested',unit='K'):
-        fname = os.path.join(self.__cholesky__,f'cholesky23_{order}_{unit}.pkl')
-        if self.diag:
-            ncm = self.__offdiag_to_zeros__(self.__get_ncm23_roger__(unit='K'))
-        else:
-            ncm = self.__get_ncm23_roger__(unit='K')
-        if os.path.exists(fname):
-            cho = pkl.load(open(fname,'rb'))
-        else:
-            cho = np.linalg.cholesky(ncm)
-            pkl.dump(cho,open(fname,'wb'))
         
-        seed = 152 + (0 if idx is None else idx) + 23
-        np.random.seed(seed)
-        noisemap = cho2map(cho)
-        pix = cho.shape[0]
-        del cho
-        #ncm_cho = np.linalg.cholesky(ncm)
-        #pix = ncm_cho.shape[0]
-        #noisem = np.random.normal(0,1,pix)
-        #noisemap = np.dot(ncm_cho, noisem)
-        QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
-                        noisemap[pix//2:]*self.polmask('nested')])
-        if order=='ring':
-            QU[0] = hp.reorder(QU[0],n2r=True)
-            QU[1] = hp.reorder(QU[1],n2r=True)
+    def get_full_ncm(self,*args,**kwargs):
+        if self.method == 'sroll':
+            return self.get_full_ncm_sroll(*args,**kwargs)
+        elif (self.method == 'ffp8'):
+            return self.get_full_ncm_generic(*args,**kwargs)
         
-        if unit=='uK':
-            QU *=1e6
-        return QU
-    
-    def noisemap_roger(self,freq,idx=None,order='ring',unit='uK'):
-
-    
+    def noisemap_sroll(self,freq,idx=None,order='nested',unit='K'):
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if freq == 23:
-            return self.__noisemap23_roger__(idx=idx,order=order,unit=unit)
+            return self.noisemap_generic(freq,idx=idx,order=order,unit=unit)
         
         ncm = self.get_ncm(freq,unit=unit)
         if os.path.exists(fname):
@@ -260,8 +254,6 @@ class NoiseModel:
         seed = 152 + (0 if idx is None else idx) + freq
         np.random.seed(seed)
         noisemap = cho2map(cho)
-        #noisem = np.random.normal(0,1,pix)
-        #noisemap = np.dot(ncm_cho, noisem)
 
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
@@ -278,20 +270,7 @@ class NoiseModel:
             raise ValueError('order must be ring or nested')
         return QU
     
-    def get_ncm_generic(self,freq,unit='uK'):
-        ncm = np.fromfile(self.ncms[freq])
-        ncm = ncm.reshape(3*self.npix,3*self.npix)
-        ncmqu = ncm[self.npix:,self.npix:]
-        lambdaI = np.eye(2*self.npix) * 4e-16
-        ncmqu = ncmqu + lambdaI
-        if unit == 'uK':
-            ncmqu *= 1e12
-        del (ncm,lambdaI)
-        if self.diag:
-            return self.__offdiag_to_zeros__(ncmqu)
-        else:
-            return ncmqu
-    def noisemap_generic(self,freq,idx=None,order='ring',unit='uK'):
+    def noisemap_generic(self,freq,idx=None,order='nested',unit='K'):
         ncm = self.get_ncm_generic(freq,unit=unit)
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if os.path.exists(fname):
@@ -306,53 +285,15 @@ class NoiseModel:
         QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
                         noisemap[pix//2:]*self.polmask('nested')])
         if order=='ring':
-            QU[0] = hp.reorder(QU[0],n2r=True)
-            QU[1] = hp.reorder(QU[1],n2r=True)
-        
-        # if unit=='uK':
-        #     QU *=1e6
+            QU = hp.reorder(QU,n2r=True)
         return QU
     
-    def get_full_ncm_generic(self,freq,unit='uK',pad_temp=False,reshape=False,order='ring'):
-        ncm_pol = self.get_ncm_generic(freq,unit=unit)
-        if order=='ring':
-            pass
-        elif order=='nested':
-            re_idx = hp.nest2ring(self.nside,np.arange(hp.nside2npix(self.nside)))
-            re_idx_full = np.concatenate([re_idx,re_idx+hp.nside2npix(self.nside)])
-            ncm_pol = ncm_pol[:,re_idx_full][re_idx_full,:]
-        else:
-            raise ValueError('order must be ring or nested')
-            
-        del ncm
-        if pad_temp:
-            NCM = np.zeros((3*self.npix,3*self.npix))
-            NCM[self.npix:,self.npix:] = ncm_pol
-        else:
-            NCM = ncm_pol
-        
-        if reshape:
-            return NCM.reshape(-1)
-        else:
-            return NCM
 
-
-    def get_ncm(self,*args,**kwargs):
-        if self.method == 'roger':
-            return self.get_ncm_roger(*args,**kwargs)
-        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
-            return self.get_ncm_generic(*args,**kwargs)
-    
-    def get_full_ncm(self,*args,**kwargs):
-        if self.method == 'roger':
-            return self.get_full_ncm_roger(*args,**kwargs)
-        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
-            return self.get_full_ncm_generic(*args,**kwargs)
         
     def noisemap(self,*args,**kwargs):
-        if self.method == 'roger':
-            return self.noisemap_roger(*args,**kwargs)
-        elif (self.method == 'ffp8') or (self.method == 'sroll2'):
+        if self.method == 'sroll':
+            return self.noisemap_sroll(*args,**kwargs)
+        elif (self.method == 'ffp8'):
             return self.noisemap_generic(*args,**kwargs)
         
 
