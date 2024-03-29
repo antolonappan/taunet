@@ -155,34 +155,39 @@ class FGMap:
         Foreground model to use
     """
 
-    def __init__(self, libdir, model=["d1", "s1"]):
-        self.libdir = os.path.join(libdir, "FG", "".join(model))
-        os.makedirs(self.libdir, exist_ok=True)
+    def __init__(self, model=["d1", "s1"],ignore_db=False):
         self.model = model
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
+        self.ignore_db = ignore_db
+        self.db = None if ignore_db else db.ForegroundDB()
 
-    def QU(self, band, seed=None, beam=True):
-        seed = 261092 if seed is None else seed
-        fname = os.path.join(self.libdir, f"QU_b{int(beam)}_{seed}_{band}.pkl")
-        if os.path.isfile(fname):
-            QU = pl.load(open(fname, "rb"))
-        else:
-            sky = pysm3.Sky(nside=self.NSIDE, preset_strings=self.model)
-            maps = sky.get_emission(band * u.GHz)
-            maps = maps.to(u.uK_CMB, equivalencies=u.cmb_equivalencies(band * u.GHz))
-            alms = hp.map2alm(maps.value, lmax=self.lmax)
-            if beam:
-                hp.almxfl(alms[1], cosbeam, inplace=True)
-                hp.almxfl(alms[2], cosbeam, inplace=True)
-            TQU = hp.alm2map(alms, self.NSIDE)
-            QU = TQU[1:].copy()
-            pl.dump(QU, open(fname, "wb"))
-            del maps
+    def __QU__(self, band):
+        sky = pysm3.Sky(nside=self.NSIDE, preset_strings=self.model)
+        maps = sky.get_emission(band * u.GHz)
+        maps = maps.to(u.uK_CMB, equivalencies=u.cmb_equivalencies(band * u.GHz))
+        alms = hp.map2alm(maps.value, lmax=self.lmax)
+        hp.almxfl(alms[1], cosbeam, inplace=True)
+        hp.almxfl(alms[2], cosbeam, inplace=True)
+        TQU = hp.alm2map(alms, self.NSIDE)
+        QU = TQU[1:].copy()
+        del maps
         return QU
+    
+    def QU(self,band):
+        if self.ignore_db:
+            return self.__QU__(band)
+        else:
+            if self.db.check_model_exist(self.model, band):
+                return self.db.get_map(self.model, band)
+            else:
+                qu = self.__QU__(band)
+                self.db.insert_map(self.model, band, qu)
+                return self.db.get_map(self.model, band)
 
-    def Emode(self, band, seed=None, mask=None, beam=False):
-        QU = self.QU(band, seed=seed, beam=beam)
+
+    def Emode(self, band, mask=None,):
+        QU = self.QU(band)
         if mask is not None:
             QU = QU * mask
         return hp.map2alm_spin(QU, 2, lmax=self.lmax)[0]

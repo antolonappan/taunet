@@ -199,3 +199,62 @@ class MapDB(TauNetDB):
         # Then remove TauTable
         remove_tau_table_sql = f'DROP TABLE IF EXISTS {self.tau_table};'
         self.execute_query(remove_tau_table_sql)
+
+
+class ForegroundDB(TauNetDB):
+    def __init__(self):
+        super().__init__()
+        self.table = 'FGTable'
+        self._create_table_()
+
+    def _create_table_(self):
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS FGTable (
+                id INTEGER PRIMARY KEY,
+                model TEXT NOT NULL,
+                freq TEXT NOT NULL,
+                map BLOB NOT NULL,
+                UNIQUE(model, freq)
+            );
+        '''
+        self.execute_query(create_table_sql)
+
+    def insert_map(self, model, freq, map_data):
+        model_str = ''.join(model)
+        freq_str = str(freq)
+        serialized_map = pickle.dumps(map_data)
+
+        insert_sql = 'INSERT INTO FGTable (model, freq, map) VALUES (?, ?, ?)'
+        self.execute_query(insert_sql, (model_str, freq_str, serialized_map))
+
+    def get_map(self, model, freq):
+        model_str = ''.join(model)
+        freq_str = str(freq)
+
+        get_map_sql = 'SELECT map FROM FGTable WHERE model = ? AND freq = ?'
+        result = self.get_data(get_map_sql, (model_str, freq_str))
+
+        if result:
+            return pickle.loads(result[0][0])
+        else:
+            raise ValueError("No map found for the given model and frequency.")
+
+    def get_all_freq(self, model):
+        model_str = ''.join(model)
+
+        query = 'SELECT freq FROM FGTable WHERE model = ?'
+        result = self.get_data(query, (model_str,))
+        return [row[0] for row in result]
+
+    def get_all_model(self):
+        query = 'SELECT DISTINCT model FROM FGTable'
+        result = self.get_data(query)
+        return [row[0] for row in result]
+
+    def check_model_exist(self, model, freq):
+        model_str = ''.join(model)
+        freq_str = str(freq)
+
+        check_query = 'SELECT COUNT(*) FROM FGTable WHERE model = ? AND freq = ?'
+        result = self.get_data(check_query, (model_str, freq_str))
+        return result and result[0][0] > 0
