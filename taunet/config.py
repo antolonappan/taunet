@@ -8,3 +8,7 @@ os.makedirs(DATADIR, exist_ok=True)
 
 SROLL2 = '/marconi_work/INF24_litebird/lpagano0/4anto/sroll2'
 FFP8 = '/marconi_work/INF24_litebird/lpagano0/4anto/ffp8_covmats'
+
+DB_TESTING = False
+
+DB_DIR = './'

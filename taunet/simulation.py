@@ -11,6 +11,7 @@ import os
 import pickle as pl
 import taunet.database as db
 
+
 try:
     cosbeam = hp.read_cl(os.path.join(DATADIR,'beam_440T_coswinP_pixwin16.fits'))[1]
 except FileNotFoundError:
@@ -45,7 +46,8 @@ class CMBspectra:
     """
 
     def __init__(
-        self, H0=67.32, ombh2=0.02237, omch2=0.1201, ns=0.9651, mnu=0.06, tau=0.06
+        self, H0=67.32, ombh2=0.02237, omch2=0.1201, ns=0.9651, mnu=0.06, tau=0.06,
+        ignore_db=False
     ) -> None:
         pars = camb.CAMBparams()
         self.tau = tau
@@ -54,7 +56,10 @@ class CMBspectra:
         pars.set_for_lmax(284, lens_potential_accuracy=0)
         self.results = camb.get_results(pars)
         self.db = db.SpectrumDB()
-        self.powers = self.powers()
+        if ignore_db:
+            self.powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
+        else:
+            self.powers = self.powers()
         self.EE = self.powers[:, 1]
         self.ell = np.arange(len(self.EE))
 
@@ -92,44 +97,50 @@ class CMBmap:
         Optical depth
     """
 
-    def __init__(self, libdir, tau, nsim=None):
-        self.libdir = os.path.join(libdir, "CMB")
-        self.specdir = os.path.join(libdir, "SPECTRA")
-        os.makedirs(self.libdir, exist_ok=True)
-        os.makedirs(self.specdir, exist_ok=True)
-        self.nsim = nsim
+    def __init__(self, tau: float,ignore_db=False):
         self.tau = tau
         print("tau = {}".format(tau))
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
-        #db = db.CMBmapDB('random')
+        self.ignore_db = ignore_db
+        self.db = None if ignore_db else db.MapDB()
 
     @property
     def EE(self):
-        return CMBspectra(tau=self.tau).EE
+        return CMBspectra(tau=self.tau,ignore_db=self.ignore_db).EE
         
 
-    def alm(self, idx=None):
+    def QU(self, idx=None):
+
+        def __QU__():
+            alm = hp.synalm(self.EE, lmax=100, new=True)
+            hp.almxfl(alm, cosbeam, inplace=True)
+            dummy = np.zeros_like(alm)
+            TQU = hp.alm2map([dummy, alm, dummy], self.NSIDE)
+            QU = TQU[1:].copy()
+            del (alm, dummy, TQU)
+            return QU
+        
         if idx is None:
             seed = 261092
         else:
             seed = 261092 + idx
+        
         np.random.seed(seed)
-        Elm = hp.synalm(self.EE, lmax=100, new=True)
-        return Elm
 
-    def QU(self, idx=None,):
-        alm = self.alm(idx=idx)
-        hp.almxfl(alm, cosbeam, inplace=True)
-        dummy = np.zeros_like(alm)
-        TQU = hp.alm2map([dummy, alm, dummy], self.NSIDE)
-        QU = TQU[1:].copy()
-        del (alm, dummy, TQU)
+        if self.ignore_db:
+            return __QU__()
+        else:
+            if self.db.check_seed_exist(self.tau, seed):
+                return self.db.get_map(seed, self.tau)
+            else:
+                qu = __QU__()
+                self.db.insert_map(seed, self.tau, qu)
+                return self.db.get_map(seed, self.tau)
 
-        return QU
 
-    def Emode(self, idx=None, beam=False):
-        QU = self.QU(idx=idx, beam=beam)
+    def Emode(self, idx=None):
+        QU = self.QU(idx=idx)
         return hp.map2alm_spin(QU, 2, lmax=self.lmax)[0]
 
 class FGMap:
