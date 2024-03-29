@@ -2,10 +2,11 @@ import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import os
-from taunet import DATADIR, SROLL2, FFP8
+from taunet import DATADIR, FFP8
 import pickle as pkl
 from numba import njit,f8
 from warnings import warn
+import taunet.database as db
 
 
 def cho2map(cho):
@@ -43,6 +44,7 @@ class NoiseModel:
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
         self.fsky = np.average(self.polmask('ring'))
         self.method = method
+        self.db = db.NoiseDB(prefix=method)
 
 
         #NCM
@@ -244,24 +246,18 @@ class NoiseModel:
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if freq == 23:
             return self.noisemap_generic(freq,idx=idx,order=order,unit=unit)
-        
         ncm = self.get_ncm(freq,unit=unit)
         if os.path.exists(fname):
             cho = pkl.load(open(fname,'rb'))
         else:
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
-        seed = 152 + (0 if idx is None else idx) + freq
-        np.random.seed(seed)
         noisemap = cho2map(cho)
-
         polmask=self.inpvec(self.__qumask__, double_prec=False)
         pl = int(sum(polmask))
 
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
-        
         QU = QU * self.polmask('ring')
-
         if order=='ring':
             pass
         elif order=='nested':
@@ -278,8 +274,6 @@ class NoiseModel:
         else:
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
-        seed = 152 + (0 if idx is None else idx) + freq
-        np.random.seed(seed)
         noisemap = cho2map(cho)
         pix = cho.shape[0]
         QU =  np.array([noisemap[:pix//2]*self.polmask('nested'),
@@ -290,12 +284,19 @@ class NoiseModel:
     
 
         
-    def noisemap(self,*args,**kwargs):
-        if self.method == 'sroll':
-            return self.noisemap_sroll(*args,**kwargs)
-        elif (self.method == 'ffp8'):
-            return self.noisemap_generic(*args,**kwargs)
-        
+    def noisemap(self,freq,idx=None,order='nested',unit='K'):
+        seed = 91094 + (0 if idx is None else idx) + int(freq)
+        np.random.seed(seed)
+        if self.db.check_noise_exist(freq,seed):
+            return self.db.get_noise(freq,seed)
+        else:
+            if self.method == 'sroll':
+                QU = self.noisemap_sroll(freq,idx,order,unit)
+            elif (self.method == 'ffp8'):
+                QU = self.noisemap_generic(freq,idx,order,unit)
+            self.db.insert_noise(freq,seed,QU)
+            return self.db.get_noise(freq,seed)
+            
 
     def Emode(self,freq,idx,unit='uK'):
         Q,U = self.noisemap(freq,idx,order='ring',unit=unit)

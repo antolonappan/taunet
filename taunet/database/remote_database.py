@@ -45,6 +45,18 @@ class TauNetDB:
         except Exception as e:
             print(f"Error fetching data: {e}")
             return None
+    
+    def show_tables(self):
+        # Query to fetch table names (MySQL-specific)
+        query = "SHOW TABLES"
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query)
+                # Fetch all table names and return them
+                return [table[0] for table in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error fetching tables: {e}")
+            return None
 
 class SpectrumDB(TauNetDB):
     def __init__(self):
@@ -258,7 +270,50 @@ class ForegroundDB(TauNetDB):
         return result[0][0] > 0
     
 
+class NoiseDB(TauNetDB):
+    def __init__(self, prefix):
+        super().__init__()
+        self.table = f'{prefix}NoiseTable'
+        self._create_table_()
 
+    def _create_table_(self):
+        create_table_sql = f'''
+            CREATE TABLE IF NOT EXISTS {self.table} (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                frequency VARCHAR(255) NOT NULL,
+                seed INT NOT NULL,
+                map BLOB NOT NULL,
+                UNIQUE(frequency, seed)
+            );
+        '''
+        self.execute_query(create_table_sql)
 
+    def insert_noise(self, frequency, seed, map_data):
+        serialized_map = pickle.dumps(map_data)
+        insert_sql = f'INSERT INTO {self.table} (frequency, seed, map) VALUES (%s, %s, %s)'
+        self.execute_query(insert_sql, (frequency, seed, serialized_map))
 
+    def get_noise(self, frequency, seed):
+        get_sql = f'SELECT map FROM {self.table} WHERE frequency = %s AND seed = %s'
+        result = self.get_data(get_sql, (frequency, seed))
+
+        if result:
+            return pickle.loads(result[0][0])
+        else:
+            raise ValueError("No noise data found for the given frequency and seed.")
+
+    def get_all_frequencies(self):
+        query = f'SELECT DISTINCT frequency FROM {self.table}'
+        result = self.get_data(query)
+        return [row[0] for row in result]
+    
+    def get_all_seeds(self, freq):
+        query = f'SELECT DISTINCT seed FROM {self.table} WHERE frequency = %s'
+        result = self.get_data(query, (freq,))
+        return [row[0] for row in result] if result else []
+
+    def check_noise_exist(self, frequency, seed):
+        check_query = f'SELECT COUNT(*) FROM {self.table} WHERE frequency = %s AND seed = %s'
+        result = self.get_data(check_query, (frequency, seed))
+        return result[0][0] > 0
 

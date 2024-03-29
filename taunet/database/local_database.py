@@ -42,6 +42,18 @@ class TauNetDB:
         except Exception as e:
             print(f"Error fetching data: {e}")
             return None
+    
+    def show_tables(self):
+        query = "SELECT name FROM sqlite_master WHERE type='table'"
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query)
+            tables = [table[0] for table in cursor.fetchall()]
+            cursor.close()
+            return tables
+        except Exception as e:
+            print(f"Error fetching tables: {e}")
+            return None
 
 
 class SpectrumDB(TauNetDB):
@@ -279,12 +291,12 @@ class NoiseDB(TauNetDB):
         '''
         self.execute_query(create_table_sql)
 
-    def insert_noise_data(self, frequency, seed, map_data):
+    def insert_noise(self, frequency, seed, map_data):
         serialized_map = pickle.dumps(map_data)
         insert_sql = f'INSERT INTO {self.table} (frequency, seed, map) VALUES (?, ?, ?)'
         self.execute_query(insert_sql, (frequency, seed, serialized_map))
 
-    def get_noise_data(self, frequency, seed):
+    def get_noise(self, frequency, seed):
         get_sql = f'SELECT map FROM {self.table} WHERE frequency = ? AND seed = ?'
         result = self.get_data(get_sql, (frequency, seed))
 
@@ -297,6 +309,11 @@ class NoiseDB(TauNetDB):
         query = f'SELECT DISTINCT frequency FROM {self.table}'
         result = self.get_data(query)
         return [row[0] for row in result]
+    
+    def get_all_seeds(self, freq):
+        query = f'SELECT DISTINCT seed FROM {self.table} WHERE frequency = ?'
+        result = self.get_data(query, (freq,))
+        return [row[0] for row in result] if result else []
 
     def check_noise_exist(self, frequency, seed):
         check_query = f'SELECT COUNT(*) FROM {self.table} WHERE frequency = ? AND seed = ?'
