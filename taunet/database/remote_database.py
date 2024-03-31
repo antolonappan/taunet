@@ -5,7 +5,6 @@ import pickle
 
 class TauNetDB:
     def __init__(self):
-        print("Connecting to the remote database...")
         host = 'antolonappan.me'
         user = os.getenv('TAUNET_ROOT_USERNAME')
         password = os.getenv('TAUNET_ROOT_PASSWORD')
@@ -156,7 +155,7 @@ class MapDB(TauNetDB):
         result = self.get_data(get_map_sql, (seed,))
 
         if result is None or len(result) == 0 or result[0][0] != tau_str:
-            raise ValueError("No matching record found or tau does not match.")
+            raise ValueError(f"No matching record found or tau does not match.{seed}")
         
         return pickle.loads(result[0][1])
 

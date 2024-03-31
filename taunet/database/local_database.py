@@ -4,7 +4,6 @@ from taunet import DB_DIR
 
 class TauNetDB:
     def __init__(self):
-        print("Connecting to local database...")
         self.connection = sqlite3.connect(f'{DB_DIR}/taunetdb.db')
         self.table = None
         self._create_table_()
@@ -157,7 +156,7 @@ class MapDB(TauNetDB):
         result = self.get_data(get_map_sql, (seed,))
 
         if result is None or len(result) == 0 or result[0][0] != tau:
-            raise ValueError("No matching record found or tau does not match.")
+            raise ValueError(f"No matching record found or tau does not match. seed:{seed}, tau:{tau}")
         
         return pickle.loads(result[0][1])
 

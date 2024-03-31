@@ -5,7 +5,6 @@ import pickle as pl
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import sys
-import h5py
 import tensorflow as tf
 import random as python_random
 import nnhealpix.layers

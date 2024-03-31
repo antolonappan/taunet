@@ -6,7 +6,6 @@ import taunet.config as cfg
 
 
 DATADIR = cfg.DATADIR
-os.makedirs(DATADIR, exist_ok=True)
 
 
 __LINK__ = 'https://figshare.com/ndownloader/files/'

@@ -1,2 +1,3 @@
 import os
-from .config import DATADIR, SROLL2, FFP8, DB_TESTING, DB_DIR
+from .data  import DATADIR
+from .config import FFP8, DB_LOCAL, DB_DIR

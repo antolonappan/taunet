@@ -10,6 +10,8 @@ from taunet import DATADIR
 import os
 import pickle as pl
 import taunet.database as db
+from typing import Union
+import warnings
 
 
 try:
@@ -97,12 +99,19 @@ class CMBmap:
         Optical depth
     """
 
-    def __init__(self, tau: float,ignore_db=False):
-        self.tau = tau
-        print("tau = {}".format(tau))
+    def __init__(self, tau: Union[float,np.array], nsim: int, ignore_db: bool=False):
+        if isinstance(tau, float):
+            self.tau_len = 1
+            self.tau = tau
+        elif isinstance(tau, np.array):
+            self.tau_len = len(tau)
+            self.tau = tau
+            self.ignore_db = ignore_db
+            if self.tau_len < 50:
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
-        self.ignore_db = ignore_db
+        self.int
+        
         self.db = None if ignore_db else db.MapDB()
 
     @property
