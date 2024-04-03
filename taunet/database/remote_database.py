@@ -1,5 +1,6 @@
 import pymysql
 import os
+import numpy as np
 import pickle
 
 
@@ -104,110 +105,94 @@ class SpectrumDB(TauNetDB):
         return [float(row[0]) for row in result]
 
 
-class MapDB(TauNetDB):
-    def __init__(self):
+import pickle
+
+class CMBmapDB(TauNetDB):
+    def __init__(self, prefix: str, taus: np.ndarray):
         super().__init__()
-        self.tau_table = 'TauTable'
-        self.map_table = 'MapTable'
+        self.table = f'{prefix}_CMBmap'
         self._create_table_()
+        self.taus = taus
+        self.tau_table = f'{prefix}_tau_distribution'
+        self._create_tau_table_()
 
     def _create_table_(self):
-        create_tau_table_sql = '''
-            CREATE TABLE IF NOT EXISTS TauTable (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                tau VARCHAR(255) UNIQUE NOT NULL
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS {} (
+                id INT PRIMARY KEY,
+                seed INT NOT NULL,
+                tau VARCHAR(255) NOT NULL,
+                map BLOB NOT NULL
             );
-        '''
-        self.execute_query(create_tau_table_sql)
-
-        create_map_table_sql = '''
-            CREATE TABLE IF NOT EXISTS MapTable (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                tau_id INT,
-                seed INT,
-                map BLOB,
-                FOREIGN KEY (tau_id) REFERENCES TauTable(id)
-            );
-        '''
-        self.execute_query(create_map_table_sql)
-
-    def insert_map(self, seed, tau, maps):
-        tau_str = str(tau)
-        serialized_maps = pickle.dumps(maps)
-
-        insert_tau_sql = 'INSERT IGNORE INTO TauTable (tau) VALUES (%s)'
-        self.execute_query(insert_tau_sql, (tau_str,))
-
-        get_tau_id_sql = 'SELECT id FROM TauTable WHERE tau = %s'
-        tau_id = self.get_data(get_tau_id_sql, (tau_str,))[0][0]
-
-        insert_map_sql = 'INSERT INTO MapTable (tau_id, seed, map) VALUES (%s, %s, %s)'
-        self.execute_query(insert_map_sql, (tau_id, seed, serialized_maps))
-
-    def get_map(self, seed, tau):
-        tau_str = str(tau)
-        get_map_sql = '''
-            SELECT t.tau, m.map
-            FROM MapTable m
-            JOIN TauTable t ON m.tau_id = t.id
-            WHERE m.seed = %s
-        '''
-        result = self.get_data(get_map_sql, (seed,))
-
-        if result is None or len(result) == 0 or result[0][0] != tau_str:
-            raise ValueError(f"No matching record found or tau does not match.{seed}")
-        
-        return pickle.loads(result[0][1])
-
-
-    def check_seed_exist(self, tau, seed):
-        tau_str = str(tau)
-        query = '''
-            SELECT EXISTS(
-                SELECT 1 
-                FROM MapTable m
-                JOIN TauTable t ON m.tau_id = t.id
-                WHERE t.tau = %s AND m.seed = %s
-            )
-        '''
-        result = self.get_data(query, (tau_str, seed))
-        return result[0][0] == 1
-
-    def get_all_seeds(self, tau):
-        tau_str = str(tau)
-        query = '''
-            SELECT m.seed
-            FROM MapTable m
-            JOIN TauTable t ON m.tau_id = t.id
-            WHERE t.tau = %s
-        '''
-        result = self.get_data(query, (tau_str,))
-        return [row[0] for row in result]
+        '''.format(self.table)
+        self.execute_query(create_table_sql)
     
-    def get_all_tau(self):
-        query = 'SELECT tau FROM TauTable'
+    def _create_tau_table_(self):
+        create_table_sql = '''
+            CREATE TABLE IF NOT EXISTS {} (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                tau_distribution BLOB NOT NULL
+            );
+        '''.format(self.tau_table)
+        self.execute_query(create_table_sql)
+
+    def insert_tau_distr(self):
+        # Serialize the NumPy array
+        serialized_taus = pickle.dumps(self.taus)
+        insert_sql = 'INSERT INTO {} (tau_distribution) VALUES (%s);'.format(self.tau_table)
+        self.execute_query(insert_sql, (serialized_taus,))
+
+    def get_tau_distr(self):
+        query = 'SELECT tau_distribution FROM {};'.format(self.tau_table)
         result = self.get_data(query)
-        return [row[0] for row in result]
+        if result:
+            # Assuming you want to return the latest entry
+            return pickle.loads(result[-1][0])
+        else:
+            print("No tau distribution data found.")
+            return None
 
-    def reset_table(self):
-        # In MySQL, resetting a table typically means emptying it.
-        # Auto-increment reset is done differently compared to SQLite
-        # Reset MapTable
-        reset_map_table_sql = f'TRUNCATE TABLE {self.map_table};'
-        self.execute_query(reset_map_table_sql)
-        
-        # Reset TauTable
-        reset_tau_table_sql = f'TRUNCATE TABLE {self.tau_table};'
-        self.execute_query(reset_tau_table_sql)
-    
-    def remove_table(self):
-        # Remove MapTable first due to foreign key constraint
-        remove_map_table_sql = f'DROP TABLE IF EXISTS {self.map_table};'
-        self.execute_query(remove_map_table_sql)
-        
-        # Then remove TauTable
-        remove_tau_table_sql = f'DROP TABLE IF EXISTS {self.tau_table};'
-        self.execute_query(remove_tau_table_sql)
+    def insert_map(self, map_id, seed, tau, cmb_map):
+        if self.check_id_exist(map_id):
+            print(f"Map with ID {map_id} already exists.")
+            return
+
+        serialized_map = pickle.dumps(cmb_map)
+        insert_sql = 'INSERT INTO {} (id, seed, tau, map) VALUES (%s, %s, %s, %s);'.format(self.table)
+        self.execute_query(insert_sql, (map_id, seed, tau, serialized_map))
+
+    def check_id_exist(self, map_id):
+        check_query = 'SELECT COUNT(*) FROM {} WHERE id = %s;'.format(self.table)
+        result = self.get_data(check_query, (map_id,))
+        return result and result[0][0] > 0
+
+    def get_seed(self, map_id):
+        query = 'SELECT seed FROM {} WHERE id = %s;'.format(self.table)
+        result = self.get_data(query, (map_id,))
+        if result:
+            return result[0][0]
+        else:
+            print(f"No map found for ID {map_id}.")
+            return None
+
+    def get_tau(self, map_id):
+        query = 'SELECT tau FROM {} WHERE id = %s;'.format(self.table)
+        result = self.get_data(query, (map_id,))
+        if result:
+            return result[0][0]
+        else:
+            print(f"No map found for ID {map_id}.")
+            return None
+
+    def get_map(self, map_id):
+        query = 'SELECT map FROM {} WHERE id = %s;'.format(self.table)
+        result = self.get_data(query, (map_id,))
+        if result:
+            return pickle.loads(result[0][0])
+        else:
+            print(f"No map found for ID {map_id}.")
+            return None
+
 
 
 class ForegroundDB(TauNetDB):

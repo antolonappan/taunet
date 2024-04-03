@@ -12,6 +12,7 @@ import pickle as pl
 import taunet.database as db
 from typing import Union
 import warnings
+import hashlib
 
 
 try:
@@ -85,6 +86,12 @@ class CMBspectra:
         if retfile:
             return fname
 
+def hash_float_array(arr):
+    sorted_arr = np.sort(arr)
+    tuple_arr = tuple(sorted_arr)
+    hash_object = hashlib.sha256(str(tuple_arr).encode())
+    hash_hex = hash_object.hexdigest()
+    return hash_hex
 
 class CMBmap:
     """
@@ -99,54 +106,77 @@ class CMBmap:
         Optical depth
     """
 
-    def __init__(self, tau: Union[float,np.array], nsim: int, ignore_db: bool=False):
+    def __init__(self, 
+                 tau: Union[float,np.ndarray], 
+                 nsim: int = 1, 
+                 ignore_db: bool=False,
+                 verbose: bool=False
+                ):
+        self.nsim = nsim
+        self.verbose = verbose
         if isinstance(tau, float):
-            self.tau_len = 1
-            self.tau = tau
-        elif isinstance(tau, np.array):
+            self.tau_len = 1 
+            self.tau = np.array([tau])
+            self.ignore_db = True
+            hex_key = None
+        elif isinstance(tau, np.ndarray):
             self.tau_len = len(tau)
             self.tau = tau
+            self.tau = self.tau_distribution()
             self.ignore_db = ignore_db
-            if self.tau_len < 50:
+            if (nsim < 1000) and (not ignore_db):
+                warnings.warn("Number of simulations is less than 1000, CMBmap forced to ignore database")
+                self.ignore_db = True
+            hex_key = hash_float_array(tau)
+        else:
+            raise ValueError("tau must be float or numpy array")
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
-        self.int
-        
+        self.db_postfix = f'{nsim}'+ (f'{tau}'.replace('.','p') if hex_key is None else hex_key)
         self.db = None if ignore_db else db.MapDB()
+        self.seeds = 261092 + np.arange(nsim)
 
-    @property
-    def EE(self):
-        return CMBspectra(tau=self.tau,ignore_db=self.ignore_db).EE
+
+    def tau_distribution(self):
+        tau_dist = []
+        for tau in tqdm(range(self.nsim), desc="Generating tau distribution",colour='red',mininterval=2):
+            tau_dist.append(np.random.choice(self.tau))
+        return np.array(tau_dist)
+
+    
+    def EE(self,i):
+        tau = self.tau[i]
+        if self.verbose:
+            print(f"Generating CMB map for tau={tau}")
+        return CMBspectra(tau=tau,ignore_db=self.ignore_db).EE
         
-
+    def __QU__(self, i):
+        alm = hp.synalm(self.EE(i), lmax=100, new=True)
+        hp.almxfl(alm, cosbeam, inplace=True)
+        dummy = np.zeros_like(alm)
+        TQU = hp.alm2map([dummy, alm, dummy], self.NSIDE)
+        QU = TQU[1:].copy()
+        del (alm, dummy, TQU)
+        return QU
+    
     def QU(self, idx=None):
-
-        def __QU__():
-            alm = hp.synalm(self.EE, lmax=100, new=True)
-            hp.almxfl(alm, cosbeam, inplace=True)
-            dummy = np.zeros_like(alm)
-            TQU = hp.alm2map([dummy, alm, dummy], self.NSIDE)
-            QU = TQU[1:].copy()
-            del (alm, dummy, TQU)
-            return QU
-        
         if idx is None:
-            seed = 261092
+            idx = 0
+            tau_idx = 0
+        elif idx >= self.nsim:
+            raise ValueError(f"set nsim to a higher value, curently set to {self.nsim}")
+        elif (idx < self.nsim) and (self.tau_len == 1):
+            tau_idx = 0
         else:
-            seed = 261092 + idx
+            tau_idx = idx
         
-        np.random.seed(seed)
-
+        if self.verbose:
+            print(f"Setting seed to {self.seeds[idx]}")
+        np.random.seed(self.seeds[idx])
         if self.ignore_db:
-            return __QU__()
+            return self.__QU__(tau_idx)
         else:
-            if self.db.check_seed_exist(self.tau, seed):
-                return self.db.get_map(seed, self.tau)
-            else:
-                qu = __QU__()
-                self.db.insert_map(seed, self.tau, qu)
-                return self.db.get_map(seed, self.tau)
-
+            raise NotImplementedError("Database not implemented")
 
     def Emode(self, idx=None):
         QU = self.QU(idx=idx)
