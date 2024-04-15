@@ -1,18 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+from tqdm import *
 import camb
 import healpy as hp
 import pysm3
 import pysm3.units as u
 from taunet.ncm import NoiseModel, NoiseModelDiag
-from taunet import DATADIR
+from taunet import DATADIR, DBDIR
 import os
 import pickle as pl
-import taunet.database as db
 from typing import Union
 import warnings
 import hashlib
+from taunet import mpi
 
 
 try:
@@ -49,33 +49,30 @@ class CMBspectra:
     """
 
     def __init__(
-        self, H0=67.32, ombh2=0.02237, omch2=0.1201, ns=0.9651, mnu=0.06, tau=0.06,
-        ignore_db=False
+        self, H0=67.32, 
+        ombh2=0.02237, 
+        omch2=0.1201, 
+        ns=0.9651, 
+        mnu=0.06, 
+        tau=0.06,
     ) -> None:
+        self.libdir = os.path.join(DBDIR, "spectra")
+        if mpi.rank == 0:
+            os.makedirs(self.libdir, exist_ok=True)
         pars = camb.CAMBparams()
         self.tau = tau
-        pars.set_cosmology(H0=H0, ombh2=ombh2, omch2=omch2, mnu=mnu, tau=tau)
-        pars.InitPower.set_params(ns=ns, r=0)
-        pars.set_for_lmax(284, lens_potential_accuracy=0)
-        self.results = camb.get_results(pars)
-        self.db = db.SpectrumDB()
-        if ignore_db:
-            self.powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
+        fname = os.path.join(self.libdir,f"{str(tau).replace('.','p')}.pkl")
+        if not os.path.isfile(fname):
+            pars.set_cosmology(H0=H0, ombh2=ombh2, omch2=omch2, mnu=mnu, tau=tau)
+            pars.InitPower.set_params(ns=ns, r=0)
+            pars.set_for_lmax(284, lens_potential_accuracy=0)
+            results = camb.get_results(pars)
+            self.powers = results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
+            pl.dump(self.powers, open(fname, "wb"))
         else:
-            self.powers = self.powers()
+            self.powers = pl.load(open(fname, "rb"))
         self.EE = self.powers[:, 1]
         self.ell = np.arange(len(self.EE))
-
-    
-    def powers(self):
-        if self.db.check_tau_exist(self.tau):
-            return self.db.get_spectra(self.tau)
-        else:
-            powers = self.results.get_lensed_scalar_cls(CMB_unit="muK", raw_cl=True)
-            self.db.insert_spectra(self.tau, powers)
-            del powers
-            return self.db.get_spectra(self.tau)
-
 
     def save_power(self, libdir, retfile=False):
         fname = os.path.join(
@@ -108,47 +105,58 @@ class CMBmap:
 
     def __init__(self, 
                  tau: Union[float,np.ndarray], 
-                 nsim: int = 1, 
-                 ignore_db: bool=False,
+                 nsim: int = 1,
                  verbose: bool=False
                 ):
         self.nsim = nsim
         self.verbose = verbose
         if isinstance(tau, float):
-            self.tau_len = 1 
             self.tau = np.array([tau])
-            self.ignore_db = True
-            hex_key = None
         elif isinstance(tau, np.ndarray):
-            self.tau_len = len(tau)
             self.tau = tau
-            self.tau = self.tau_distribution()
-            self.ignore_db = ignore_db
-            if (nsim < 1000) and (not ignore_db):
-                warnings.warn("Number of simulations is less than 1000, CMBmap forced to ignore database")
-                self.ignore_db = True
-            hex_key = hash_float_array(tau)
         else:
             raise ValueError("tau must be float or numpy array")
+        
+        self.tau_len = len(self.tau)
+        hex_key = hash_float_array(self.tau)
+        db_postfix = f'{nsim}'+ hex_key[:16]
+        self.libdir = os.path.join(DBDIR, "CMB", db_postfix)
+        if mpi.rank == 0:
+            os.makedirs(self.libdir, exist_ok=True)
+        self.tau_dis = self.tau_distribution()
         self.NSIDE = 16
         self.lmax = 3 * self.NSIDE - 1
-        self.db_postfix = f'{nsim}'+ (f'{tau}'.replace('.','p') if hex_key is None else hex_key)
-        self.db = None if ignore_db else db.MapDB()
         self.seeds = 261092 + np.arange(nsim)
 
 
     def tau_distribution(self):
-        tau_dist = []
-        for tau in tqdm(range(self.nsim), desc="Generating tau distribution",colour='red',mininterval=2):
-            tau_dist.append(np.random.choice(self.tau))
-        return np.array(tau_dist)
+        fname = os.path.join(self.libdir, "tau_dist.pkl")
+        if os.path.isfile(fname):
+            return pl.load(open(fname, "rb"))
+        else:
+            if self.tau_len == 1:
+                tau_dist = self.tau
+            else:
+                tau_dist = []
+                for tau in tqdm(range(self.nsim), desc="Generating tau distribution",colour='red',mininterval=2):
+                    tau_dist.append(np.random.choice(self.tau))
+                tau_dist = np.array(tau_dist)
+            pl.dump(tau_dist, open(fname, "wb"))
+            return tau_dist
+    
+    def get_tau(self,i):
+        if self.tau_len == 1:
+            tau = self.tau[0]
+        else:
+            tau = self.tau_dis[i]
+        return tau
 
     
     def EE(self,i):
-        tau = self.tau[i]
+        tau = self.get_tau(i)
         if self.verbose:
-            print(f"Generating CMB map for tau={tau}")
-        return CMBspectra(tau=tau,ignore_db=self.ignore_db).EE
+            print(f"Generating E mode for tau={tau}")
+        return CMBspectra(tau=tau).EE
         
     def __QU__(self, i):
         alm = hp.synalm(self.EE(i), lmax=100, new=True)
@@ -162,26 +170,38 @@ class CMBmap:
     def QU(self, idx=None):
         if idx is None:
             idx = 0
-            tau_idx = 0
         elif idx >= self.nsim:
             raise ValueError(f"set nsim to a higher value, curently set to {self.nsim}")
-        elif (idx < self.nsim) and (self.tau_len == 1):
-            tau_idx = 0
-        else:
-            tau_idx = idx
-        
+
         if self.verbose:
             print(f"Setting seed to {self.seeds[idx]}")
-        np.random.seed(self.seeds[idx])
-        if self.ignore_db:
-            return self.__QU__(tau_idx)
+
+        fname = os.path.join(self.libdir, f"QU_{idx:06d}.pkl")
+        if os.path.isfile(fname):
+            try:
+                return pl.load(open(fname, "rb"))
+            except:
+                np.random.seed(self.seeds[idx])
+                QU = self.__QU__(idx)
+                pl.dump(QU, open(fname, "wb"))
+                return QU   
         else:
-            raise NotImplementedError("Database not implemented")
+            np.random.seed(self.seeds[idx])
+            QU = self.__QU__(idx)
+            pl.dump(QU, open(fname, "wb"))
+            return QU
+
+
 
     def Emode(self, idx=None):
         QU = self.QU(idx=idx)
         return hp.map2alm_spin(QU, 2, lmax=self.lmax)[0]
+    
 
+
+
+def QU_wrapper(instance, i):
+    return instance.QU(i)
 class FGMap:
     """
     SkySimulation class to generate foreground maps

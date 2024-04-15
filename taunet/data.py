@@ -19,6 +19,9 @@ __FILES__ =  {#'noise_FFP10_30full_EB_lmax4_pixwin_200sims_smoothmean_AC.dat':[4
               'beam_coswin_ns16.fits':[43491582,'c5543348abad26a88c1a9a574212934e'],
               'mask_pol_nside16.dat':[43491585,'28db044800168128d355c8275675c72d'],
               'beam_440T_coswinP_pixwin16.fits': [45095293,'91f417a2dc2b16aa3a6f88634a27dce8'],
+              'dx11_ncm_100_combined_smoothed_nside0016.dat':[45510882,'1284a66e92e8f3b570ab1c7c293ee9a1'],
+              'dx11_ncm_143_combined_smoothed_nside0016.dat':[45510885,'1e9350dd209f7b4c1fbecb86dea5331e'],
+              'dx11_ncm_353_combined_smoothed_nside0016.dat':[45510894,'4e78ef6628b49fd172d4a2d715ab3aae'],
             }
 
 def md5(fname):

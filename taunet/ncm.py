@@ -2,11 +2,12 @@ import numpy as np
 import healpy as hp
 import matplotlib.pyplot as plt
 import os
-from taunet import DATADIR, FFP8
+from taunet import DATADIR, DBDIR
 import pickle as pkl
 from numba import njit,f8
 from warnings import warn
-import taunet.database as db
+from taunet import mpi
+
 
 
 def cho2map(cho):
@@ -35,16 +36,22 @@ class NoiseModel:
         self.dtype = np.float32
         self.diag = diag
 
+        self.basedir = os.path.join(DBDIR,f"Noise{'_diag' if diag else ''}")
+
         # directory
         self.__cfd__ = DATADIR
         self.__cholesky__ = os.path.join(self.__cfd__,f"cholesky_{method}{'' if not diag else '_diag'}")
-        os.makedirs(self.__cholesky__,exist_ok=True)
+        if mpi.rank == 0:
+            os.makedirs(self.__cholesky__,exist_ok=True)
+            os.makedirs(self.basedir,exist_ok=True)
+            for f in [23,100,143,353]:
+                os.makedirs(os.path.join(self.basedir,f"{f}"),exist_ok=True)
+        mpi.barrier()
         # mask
         self.__tmask__ = os.path.join(self.__cfd__,'tmaskfrom0p70.dat')
         self.__qumask__ = os.path.join(self.__cfd__,'mask_pol_nside16.dat')
         self.fsky = np.average(self.polmask('ring'))
         self.method = method
-        self.db = db.NoiseDB(prefix=method)
 
 
         #NCM
@@ -54,9 +61,9 @@ class NoiseModel:
            353 : os.path.join(self.__cfd__,'noise_SROLL20_353psb_full_EB_lmax4_pixwin_400sims_smoothmean_AC_suboffset_new.dat'),
         }
         ncms_ffp8 = {
-            100 : os.path.join(FFP8,'dx11_ncm_100_combined_smoothed_nside0016.dat'),
-            143 : os.path.join(FFP8,'dx11_ncm_143_combined_smoothed_nside0016.dat'),
-            353 : os.path.join(FFP8,'dx11_ncm_353_combined_smoothed_nside0016.dat'),
+            100 : os.path.join(self.__cfd__,'dx11_ncm_100_combined_smoothed_nside0016.dat'),
+            143 : os.path.join(self.__cfd__,'dx11_ncm_143_combined_smoothed_nside0016.dat'),
+            353 : os.path.join(self.__cfd__,'dx11_ncm_353_combined_smoothed_nside0016.dat'),
         }
 
 
@@ -66,6 +73,7 @@ class NoiseModel:
             self.ncms = ncms_ffp8
  
         self.ncms[23] = os.path.join(self.__cfd__,'wmap_K_coswin_ns16_9yr_v5_covmat.bin')
+        self.cholesky_dict = {}
 
     
     
@@ -246,10 +254,13 @@ class NoiseModel:
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if freq == 23:
             return self.noisemap_generic(freq,idx=idx,order=order,unit=unit)
-        ncm = self.get_ncm(freq,unit=unit)
+        
         if os.path.exists(fname):
-            cho = pkl.load(open(fname,'rb'))
+            if fname not in self.cholesky_dict.keys():
+                self.cholesky_dict[fname] = pkl.load(open(fname,'rb'))
+            cho = self.cholesky_dict[fname]
         else:
+            ncm = self.get_ncm(freq,unit=unit)
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
         noisemap = cho2map(cho)
@@ -267,11 +278,13 @@ class NoiseModel:
         return QU
     
     def noisemap_generic(self,freq,idx=None,order='nested',unit='K'):
-        ncm = self.get_ncm_generic(freq,unit=unit)
         fname = os.path.join(self.__cholesky__,f'cholesky{freq}_{order}_{unit}.pkl')
         if os.path.exists(fname):
-            cho = pkl.load(open(fname,'rb'))
+            if fname not in self.cholesky_dict.keys():
+                self.cholesky_dict[fname] = pkl.load(open(fname,'rb'))
+            cho = self.cholesky_dict[fname]
         else:
+            ncm = self.get_ncm_generic(freq,unit=unit)
             cho = np.linalg.cholesky(ncm)
             pkl.dump(cho,open(fname,'wb'))
         noisemap = cho2map(cho)
@@ -286,16 +299,18 @@ class NoiseModel:
         
     def noisemap(self,freq,idx=None,order='nested',unit='K'):
         seed = 91094 + (0 if idx is None else idx) + int(freq)
-        np.random.seed(seed)
-        if self.db.check_noise_exist(freq,seed):
-            return self.db.get_noise(freq,seed)
+        fname = os.path.join(self.basedir,f"{freq}",f"noisemap_{self.method}_{order}_{unit}_{idx:06d}.pkl")
+        if os.path.exists(fname):
+            QU = pkl.load(open(fname,'rb'))
         else:
+            np.random.seed(seed)
             if self.method == 'sroll':
                 QU = self.noisemap_sroll(freq,idx,order,unit)
             elif (self.method == 'ffp8'):
                 QU = self.noisemap_generic(freq,idx,order,unit)
-            self.db.insert_noise(freq,seed,QU)
-            return self.db.get_noise(freq,seed)
+            
+            pkl.dump(QU,open(fname,'wb'))
+            return QU
             
 
     def Emode(self,freq,idx,unit='uK'):
