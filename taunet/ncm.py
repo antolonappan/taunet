@@ -270,7 +270,7 @@ class NoiseModel:
         QU =  np.array([self.unmask(noisemap[:pl],polmask),self.unmask(noisemap[pl:],polmask)])
         QU = QU * self.polmask('ring')
         if order=='ring':
-            pass
+            return QU
         elif order=='nested':
             QU = hp.reorder(QU,r2n=True)
         else:
@@ -302,6 +302,7 @@ class NoiseModel:
         fname = os.path.join(self.basedir,f"{freq}",f"noisemap_{self.method}_{order}_{unit}_{idx:06d}.pkl")
         if os.path.exists(fname):
             QU = pkl.load(open(fname,'rb'))
+            return QU
         else:
             np.random.seed(seed)
             if self.method == 'sroll':

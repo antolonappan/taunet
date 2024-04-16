@@ -88,3 +88,9 @@ class TauNet:
     
     def predict(self,X_test):
         return self.model.predict(X_test)
+    
+    def save(self,fname):
+        self.model.save(fname)
+    
+    def load(self,fname):
+        self.model = tf.keras.models.load_model(fname,custom_objects={'OrderMap': nnhealpix.layers.OrderMap,'new_loss':self.new_loss})
